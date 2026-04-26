@@ -252,10 +252,19 @@ export class GameScene extends Phaser.Scene {
 
     const targetIndex = Phaser.Math.Between(0, SEGMENTS.length - 1);
     const slice = (Math.PI * 2) / SEGMENTS.length;
-    const extraSpins = Phaser.Math.Between(5, 8) * Math.PI * 2;
-    const targetAngle = extraSpins + (slice * targetIndex);
+    const minExtraSpins = Phaser.Math.Between(5, 8);
 
-    let current = this.wheelAngle;
+    // The pointer is at the top. Segment i is centered under the pointer when:
+    // rotation = -(i + 0.5) * slice  (mod 2π)
+    // Find the smallest finalAngle > current + minExtraSpins*2π that satisfies this.
+    const TWO_PI = Math.PI * 2;
+    const targetMod = ((-(targetIndex + 0.5) * slice) % TWO_PI + TWO_PI) % TWO_PI;
+    const minFinal = this.wheelAngle + minExtraSpins * TWO_PI;
+    const k = Math.ceil((minFinal - targetMod) / TWO_PI);
+    const finalAngle = k * TWO_PI + targetMod;
+
+    const startAngle = this.wheelAngle;
+    const totalRotation = finalAngle - startAngle;
     const duration = 3500;
     const start = Date.now();
 
@@ -263,13 +272,13 @@ export class GameScene extends Phaser.Scene {
       const elapsed = Date.now() - start;
       const t = Math.min(elapsed / duration, 1);
       const eased = 1 - Math.pow(1 - t, 3);
-      const angle = current + targetAngle * eased;
-      this.wheelAngle = angle;
-      this.drawWheelGraphics(angle);
+      this.wheelAngle = startAngle + totalRotation * eased;
+      this.drawWheelGraphics(this.wheelAngle);
 
       if (t < 1) {
         requestAnimationFrame(animate);
       } else {
+        this.wheelAngle = finalAngle;
         this.applyOutcome(SEGMENTS[targetIndex]);
       }
     };
