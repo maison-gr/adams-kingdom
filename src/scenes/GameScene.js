@@ -28,12 +28,28 @@ export class GameScene extends Phaser.Scene {
     const W = this.scale.width;
     const H = this.scale.height;
 
+    GameState.checkRefill();
+
     this.drawBackground(W, H);
     this.drawKingdom(W, H);
     this.drawWheel(W, H);
     this.drawHUD(W, H);
     this.drawSpinButton(W, H);
+    this.drawWatchAdArea(W, H);
     this.drawResultText(W, H);
+  }
+
+  update() {
+    if (GameState.spins > 0 || !this.refillCountdown) return;
+    const ms = GameState.msUntilNextSpin();
+    if (ms > 0) {
+      const mins = Math.floor(ms / 60000);
+      const secs = Math.floor((ms % 60000) / 1000);
+      this.refillCountdown.setText(`Free spin in ${mins}:${secs.toString().padStart(2, '0')}`);
+    } else {
+      const earned = GameState.checkRefill();
+      if (earned > 0) this.updateHUD();
+    }
   }
 
   drawBackground(W, H) {
@@ -222,8 +238,55 @@ export class GameScene extends Phaser.Scene {
     g.strokeRoundedRect(x - 100, y - 30, 200, 60, 16);
   }
 
+  drawWatchAdArea(W, H) {
+    const bx = W / 2;
+    const by = H * 0.93;
+
+    this.adBtnBg = this.add.graphics();
+    this.adBtnBg.fillStyle(0x27ae60, 1);
+    this.adBtnBg.fillRoundedRect(bx - 120, by - 20, 240, 40, 12);
+    this.adBtnBg.lineStyle(2, 0x2ecc71, 1);
+    this.adBtnBg.strokeRoundedRect(bx - 120, by - 20, 240, 40, 12);
+
+    this.adBtnText = this.add.text(bx, by, 'Watch Ad  +5 Spins', {
+      fontSize: '17px', fontFamily: 'Arial Black', color: '#ffffff',
+      stroke: '#000000', strokeThickness: 3,
+    }).setOrigin(0.5);
+
+    this.adBtnHit = this.add.rectangle(bx, by, 240, 40, 0x000000, 0)
+      .setInteractive({ useHandCursor: true });
+    this.adBtnHit.on('pointerdown', () => this.onWatchAd());
+
+    this.refillCountdown = this.add.text(bx, by + 26, '', {
+      fontSize: '12px', fontFamily: 'Arial', color: '#888888',
+    }).setOrigin(0.5);
+
+    this.setWatchAdVisible(GameState.spins === 0);
+  }
+
+  setWatchAdVisible(visible) {
+    this.adBtnBg.setVisible(visible);
+    this.adBtnText.setVisible(visible);
+    this.refillCountdown.setVisible(visible);
+    if (visible) this.adBtnHit.setInteractive({ useHandCursor: true });
+    else this.adBtnHit.disableInteractive();
+  }
+
+  onWatchAd() {
+    this.adBtnHit.disableInteractive();
+    this.adBtnText.setText('Watching...');
+    this.refillCountdown.setText('');
+
+    this.time.delayedCall(2500, () => {
+      GameState.addSpins(5);
+      this.adBtnText.setText('Watch Ad  +5 Spins');
+      this.updateHUD();
+      this.showResult('+5 Spins!', '#2ecc71');
+    });
+  }
+
   drawBuildButtons(W, H) {
-    const by = H * 0.96;
+    const by = H * 0.98;
     this.buildBtnText = this.add.text(W / 2, by, 'Tap building to upgrade', {
       fontSize: '13px', fontFamily: 'Arial', color: '#aaaaaa',
     }).setOrigin(0.5);
@@ -455,5 +518,6 @@ export class GameScene extends Phaser.Scene {
     this.coinsText.setText(`${GameState.coins.toLocaleString()}`);
     this.spinsText.setText(`${GameState.spins}`);
     this.shieldText.setText(`${GameState.shields}`);
+    this.setWatchAdVisible(GameState.spins === 0);
   }
 }
