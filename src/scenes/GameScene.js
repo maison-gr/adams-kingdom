@@ -20,6 +20,8 @@ export class GameScene extends Phaser.Scene {
     super('GameScene');
     this.isSpinning = false;
     this.wheelAngle = 0;
+    this.attackOverlay = [];
+    this.attackBldgs = [];
   }
 
   create() {
@@ -295,6 +297,7 @@ export class GameScene extends Phaser.Scene {
     } else if (segment.type === 'attack') {
       GameState.addAttack();
       this.showResult('ATTACK!', '#e74c3c');
+      this.time.delayedCall(1000, () => this.showAttackOverlay());
     } else if (segment.type === 'shield') {
       GameState.addShield();
       this.showResult('SHIELD!', '#3498db');
@@ -338,6 +341,114 @@ export class GameScene extends Phaser.Scene {
     this.refreshKingdom();
     this.showResult(`${BUILDING_NAMES[index]} upgraded!`, '#2ecc71');
     this.updateHUD();
+  }
+
+  showAttackOverlay() {
+    const W = this.scale.width;
+    const H = this.scale.height;
+    const D = 20;
+    const add = (obj) => { obj.setDepth(D); this.attackOverlay.push(obj); return obj; };
+
+    const victimNames = ['King Leo', 'Queen Maya', 'Baron Fritz', 'Lady Zara', 'Duke Rex', 'Prince Sam'];
+    const victimName = Phaser.Utils.Array.GetRandom(victimNames);
+    const victimBuildings = Array.from({ length: 6 }, () => Phaser.Math.Between(0, 3));
+
+    add(this.add.rectangle(W / 2, H / 2, W, H, 0x000000, 0.88));
+    add(this.add.text(W / 2, H * 0.09, 'ATTACK!', {
+      fontSize: '44px', fontFamily: 'Arial Black', color: '#e74c3c',
+      stroke: '#000000', strokeThickness: 6,
+    }).setOrigin(0.5));
+    add(this.add.text(W / 2, H * 0.17, `Raiding ${victimName}'s Kingdom`, {
+      fontSize: '17px', fontFamily: 'Arial', color: '#cccccc',
+    }).setOrigin(0.5));
+
+    const groundY = H * 0.42;
+    const ground = this.add.graphics().setDepth(D);
+    ground.fillStyle(0x2d5a27, 1);
+    ground.fillRect(0, groundY - 20, W, 40);
+    this.attackOverlay.push(ground);
+
+    this.attackBldgs = [];
+    for (let i = 0; i < 6; i++) {
+      const x = (W / 7) * (i + 1);
+      const level = victimBuildings[i];
+      const g = this.add.graphics().setDepth(D);
+      this.drawBuilding(g, x, groundY, i, level);
+      this.attackOverlay.push(g);
+
+      const hit = this.add.rectangle(x, groundY - 35, 52, 80, 0xffffff, 0)
+        .setDepth(D + 1).setInteractive({ useHandCursor: true });
+      hit.on('pointerover', () => hit.setFillStyle(0xffffff, 0.15));
+      hit.on('pointerout',  () => hit.setFillStyle(0xffffff, 0));
+      hit.on('pointerdown', () => this.onAttackBuilding(i, x, groundY, level));
+      this.attackOverlay.push(hit);
+      this.attackBldgs.push({ hit });
+    }
+
+    add(this.add.text(W / 2, H * 0.56, 'Tap a building to attack!', {
+      fontSize: '16px', fontFamily: 'Arial Black', color: '#ffd700',
+    }).setOrigin(0.5));
+
+    const skipBg = this.add.graphics().setDepth(D);
+    skipBg.fillStyle(0x333333, 1);
+    skipBg.fillRoundedRect(W / 2 - 55, H * 0.63, 110, 36, 10);
+    this.attackOverlay.push(skipBg);
+    add(this.add.text(W / 2, H * 0.63 + 18, 'Skip', {
+      fontSize: '16px', fontFamily: 'Arial', color: '#aaaaaa',
+    }).setOrigin(0.5));
+    const skipHit = this.add.rectangle(W / 2, H * 0.63 + 18, 110, 36, 0x000000, 0)
+      .setDepth(D + 1).setInteractive({ useHandCursor: true });
+    skipHit.on('pointerdown', () => this.closeAttackOverlay());
+    this.attackOverlay.push(skipHit);
+  }
+
+  onAttackBuilding(index, x, groundY, level) {
+    this.attackBldgs.forEach(b => b.hit.disableInteractive());
+    const D = 22;
+    const W = this.scale.width;
+
+    const colors = [0xe74c3c, 0xf39c12, 0xffd700];
+    for (let i = 0; i < 10; i++) {
+      const angle = (i / 10) * Math.PI * 2;
+      const p = this.add.circle(x, groundY - 40, Phaser.Math.Between(5, 12),
+        Phaser.Utils.Array.GetRandom(colors)).setDepth(D);
+      this.attackOverlay.push(p);
+      this.tweens.add({
+        targets: p,
+        x: x + Math.cos(angle) * 55,
+        y: groundY - 40 + Math.sin(angle) * 55,
+        alpha: 0, scale: 0.1, duration: 700, ease: 'Power2',
+      });
+    }
+
+    const flash = this.add.rectangle(x, groundY - 35, 52, 80, 0xe74c3c, 0.75).setDepth(D);
+    this.attackOverlay.push(flash);
+    this.tweens.add({ targets: flash, alpha: 0, duration: 500 });
+
+    const stolen = level === 0
+      ? Phaser.Math.Between(50, 150)
+      : level * Phaser.Math.Between(250, 400);
+    GameState.addCoins(stolen);
+    this.updateHUD();
+
+    const stealText = this.add.text(W / 2, groundY - 90,
+      `+${stolen.toLocaleString()} coins stolen!`, {
+        fontSize: '24px', fontFamily: 'Arial Black', color: '#ffd700',
+        stroke: '#000000', strokeThickness: 4,
+      }).setOrigin(0.5).setDepth(D);
+    this.attackOverlay.push(stealText);
+    this.tweens.add({
+      targets: stealText, y: stealText.y - 60, alpha: 0,
+      duration: 1600, ease: 'Power2', delay: 400,
+    });
+
+    this.time.delayedCall(2000, () => this.closeAttackOverlay());
+  }
+
+  closeAttackOverlay() {
+    this.attackOverlay.forEach(o => o.destroy());
+    this.attackOverlay = [];
+    this.attackBldgs = [];
   }
 
   updateHUD() {
