@@ -1,0 +1,11 @@
+{
+  "appId": "com.maisongr.adamskingdom",
+  "appName": "Adam's Kingdom",
+  "webDir": "dist",
+  "server": {
+    "androidScheme": "https"
+  },
+  "android": {
+    "allowMixedContent": true
+  }
+}
