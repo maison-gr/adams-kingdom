@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { GameState }  from '../GameState.js';
 import { CHEST_DEFS, generateRewards } from '../systems/ChestSystem.js';
+import { CardSystem }  from '../systems/CardSystem.js';
 import { burstParticles } from '../effects/juice.js';
 
 const REWARD_COLORS = {
@@ -16,10 +17,12 @@ export class ChestScene extends Phaser.Scene {
   // ── Bootstrap ──────────────────────────────────────────────────────────────
 
   init(data) {
-    this.chestId   = data.chestId;
-    this.chestType = data.chestType || 'wood';
-    this.rewards   = generateRewards(this.chestType);
-    this.opened    = false;
+    this.chestId    = data.chestId;
+    this.chestType  = data.chestType || 'wood';
+    this.rewards    = generateRewards(this.chestType);
+    this.opened     = false;
+    this.cardSystem = new CardSystem();
+    this.drawnCards = [];
   }
 
   create() {
@@ -183,6 +186,7 @@ export class ChestScene extends Phaser.Scene {
           burstParticles(this, this.cx, this.cy, [
             def.lidColor, def.gemColor, 0xFFFFFF, 0xFFD700,
           ], 20);
+          this.drawnCards = this.cardSystem.drawFromChest(this.chestType);
           this._showRewards();
         },
       });
@@ -195,7 +199,7 @@ export class ChestScene extends Phaser.Scene {
     const { W, H, rewards } = this;
     const xPositions = [W * 0.18, W * 0.50, W * 0.82];
     const startY = this.cy - 10;
-    const endY   = H * 0.26;
+    const endY   = H * 0.22;
 
     rewards.forEach((reward, i) => {
       this.time.delayedCall(i * 240, () => {
@@ -203,8 +207,61 @@ export class ChestScene extends Phaser.Scene {
         this.tweens.add({ targets: card, y: endY, duration: 400, ease: 'Back.easeOut' });
 
         if (i === rewards.length - 1) {
-          this.time.delayedCall(500, () => this._showCollectButton());
+          this.time.delayedCall(400, () => this._showCardReveal());
+          this.time.delayedCall(900, () => this._showCollectButton());
         }
+      });
+    });
+  }
+
+  _showCardReveal() {
+    const { W, H } = this;
+    const cards    = this.drawnCards;
+    if (!cards.length) return;
+
+    const RARITY_COL = { common: 0x2244BB, rare: 0x8833CC, gold: 0xD4A017 };
+    const RARITY_BG  = { common: 0x0A1A3A, rare: 0x1A0A38, gold: 0x2A1500 };
+
+    this.add.text(W / 2, H * 0.48, '🃏  New Card' + (cards.length > 1 ? 's' : '') + '!', {
+      fontSize: '14px', fontFamily: 'Arial Black',
+      color: '#D4A017', stroke: '#000000', strokeThickness: 3,
+    }).setOrigin(0.5).setDepth(7).setAlpha(0);
+
+    const lbl = this.children.list[this.children.list.length - 1];
+    this.tweens.add({ targets: lbl, alpha: 1, duration: 300 });
+
+    const CW = 72, CH = 88;
+    const gap = 10;
+    const totalW = cards.length * CW + (cards.length - 1) * gap;
+    const startX = W / 2 - totalW / 2 + CW / 2;
+
+    cards.forEach((card, i) => {
+      const cx = startX + i * (CW + gap);
+      const cy = H * 0.60;
+
+      this.time.delayedCall(i * 160, () => {
+        const g = this.add.graphics().setDepth(7).setAlpha(0);
+        g.fillStyle(RARITY_BG[card.rarity], 1);
+        g.fillRoundedRect(cx - CW / 2, cy - CH / 2, CW, CH, 6);
+        g.lineStyle(2, RARITY_COL[card.rarity], 0.9);
+        g.strokeRoundedRect(cx - CW / 2, cy - CH / 2, CW, CH, 6);
+        if (card.rarity === 'gold') {
+          g.fillStyle(0xFFD700, 0.08);
+          g.fillRoundedRect(cx - CW / 2, cy - CH / 2, CW, CH, 6);
+        }
+        this.tweens.add({ targets: g, alpha: 1, duration: 280 });
+
+        const icon = this.add.text(cx, cy - 14, card.icon, { fontSize: '26px' })
+          .setOrigin(0.5).setDepth(8).setAlpha(0);
+        const name = this.add.text(cx, cy + 22, card.name, {
+          fontSize: '9px', fontFamily: 'Arial Black',
+          color: { common: '#88AADD', rare: '#CC88EE', gold: '#FFD700' }[card.rarity],
+        }).setOrigin(0.5).setDepth(8).setAlpha(0);
+        const rTag = this.add.text(cx, cy + 36, card.rarity.toUpperCase(), {
+          fontSize: '7px', fontFamily: 'Arial Black', color: '#445566',
+        }).setOrigin(0.5).setDepth(8).setAlpha(0);
+
+        this.tweens.add({ targets: [icon, name, rTag], alpha: 1, duration: 280 });
       });
     });
   }
@@ -268,7 +325,39 @@ export class ChestScene extends Phaser.Scene {
       if (r.type === 'shield') for (let i = 0; i < r.value; i++) GameState.addShield();
     });
     if (this.chestId) GameState.removeChest(this.chestId);
-    this._returnHome();
+
+    const newSets = this.cardSystem.unclaimedComplete();
+    if (newSets.length > 0) {
+      this._showSetCompleteFlash(newSets[0].name, () => this._returnHome());
+    } else {
+      this._returnHome();
+    }
+  }
+
+  _showSetCompleteFlash(setName, callback) {
+    const { W, H } = this;
+    const D = 20;
+    const bg = this.add.rectangle(W / 2, H / 2, W, H, 0x000000, 0.82).setDepth(D);
+    const t1 = this.add.text(W / 2, H * 0.40, '🎉 SET COMPLETE!', {
+      fontSize: '36px', fontFamily: 'Arial Black',
+      color: '#FFD700', stroke: '#000000', strokeThickness: 6,
+    }).setOrigin(0.5).setDepth(D + 1).setScale(0.1);
+    const t2 = this.add.text(W / 2, H * 0.52, setName, {
+      fontSize: '20px', fontFamily: 'Arial Black',
+      color: '#FFFFFF', stroke: '#000000', strokeThickness: 4,
+    }).setOrigin(0.5).setDepth(D + 1).setAlpha(0);
+    const t3 = this.add.text(W / 2, H * 0.62, 'Visit Cards to claim your reward!', {
+      fontSize: '13px', fontFamily: 'Arial', color: '#AABBCC',
+    }).setOrigin(0.5).setDepth(D + 1).setAlpha(0);
+
+    this.tweens.add({ targets: t1, scaleX: 1, scaleY: 1, duration: 380, ease: 'Back.easeOut' });
+    this.tweens.add({ targets: [t2, t3], alpha: 1, duration: 400, delay: 280 });
+    this.time.delayedCall(2800, () => {
+      this.tweens.add({
+        targets: [bg, t1, t2, t3], alpha: 0, duration: 350,
+        onComplete: callback,
+      });
+    });
   }
 
   _returnHome() {

@@ -16,6 +16,7 @@ export class MissionsScene extends Phaser.Scene {
     this._drawTitlePanel(W);
     this._drawMissions(W);
     this._drawDailyBonus(W, H);
+    this._drawCardsBtn(W, H);
     this._drawCloseBtn(W, H);
     this._startTimer(W);
   }
@@ -206,9 +207,36 @@ export class MissionsScene extends Phaser.Scene {
 
   // ─── CLOSE BUTTON ──────────────────────────────────────────────────────────
 
+  _drawCardsBtn(W, H) {
+    const bx = W / 2;
+    const by = H * 0.840;
+
+    const g = this.add.graphics().setDepth(5);
+    g.fillStyle(0x0A2050, 1); g.fillRoundedRect(bx - 100, by - 24, 200, 48, 14);
+    g.fillStyle(0x1A4A9A, 1); g.fillRoundedRect(bx - 100, by - 24, 200, 34, 14);
+    g.fillStyle(0x2266CC, 0.40); g.fillRoundedRect(bx - 96, by - 20, 192, 16, 10);
+    g.lineStyle(2, 0xD4A017, 0.75); g.strokeRoundedRect(bx - 100, by - 24, 200, 48, 14);
+
+    this.add.text(bx, by, '🃏  My Card Collection', {
+      fontSize: '17px', fontFamily: 'Arial Black',
+      color: '#FFFFFF', stroke: '#0A2050', strokeThickness: 4,
+    }).setOrigin(0.5).setDepth(6);
+
+    this.add.rectangle(bx, by, 200, 48, 0x000000, 0)
+      .setInteractive({ useHandCursor: true })
+      .setDepth(7)
+      .on('pointerdown', () => {
+        this.cameras.main.fadeOut(200, 0, 0, 0);
+        this.time.delayedCall(210, () => {
+          this.scene.stop('MissionsScene');
+          this.scene.launch('CardsScene');
+        });
+      });
+  }
+
   _drawCloseBtn(W, H) {
     const bx = W / 2;
-    const by = H * 0.915;
+    const by = H * 0.935;
 
     const g = this.add.graphics().setDepth(5);
     g.fillStyle(0x7B2D00, 1); g.fillRoundedRect(bx - 100, by - 28, 200, 56, 16);
