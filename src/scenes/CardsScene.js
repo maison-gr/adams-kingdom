@@ -55,6 +55,13 @@ export class CardsScene extends Phaser.Scene {
     this.add.text(W / 2, 73, `${this.cs.uniqueCount} / ${this.cs.totalCards} unique cards`, {
       fontSize: '11px', fontFamily: 'Arial', color: '#556677',
     }).setOrigin(0.5).setDepth(2);
+
+    if (this.cs.uniqueCount === 0) {
+      this.add.text(W / 2, 80, '🎁  Spin the wheel to get chests — open chests to collect cards!', {
+        fontSize: '12px', fontFamily: 'Arial', color: '#1ABC9C',
+        align: 'center', wordWrap: { width: W - 40 },
+      }).setOrigin(0.5, 0).setDepth(2);
+    }
   }
 
   // ─── SETS ──────────────────────────────────────────────────────────────────

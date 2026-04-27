@@ -10,14 +10,14 @@ async function post(path, body) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     });
-    return res.ok ? res.json() : null;
+    return res.ok ? await res.json() : null;
   } catch { return null; }
 }
 
 async function get(path) {
   try {
     const res = await fetch(`${BASE}${path}`);
-    return res.ok ? res.json() : null;
+    return res.ok ? await res.json() : null;
   } catch { return null; }
 }
 

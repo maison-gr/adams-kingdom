@@ -14,6 +14,7 @@ const config = {
   height: 854,
   backgroundColor: '#0a0a2e',
   parent: 'game',
+  audio: { noAudio: true },   // AudioSystem.js uses its own Web Audio context
   scene: [BootScene, GameScene, AttackScene, RaidScene, ChestScene, LeaderboardScene, MissionsScene, CardsScene],
   scale: {
     mode: Phaser.Scale.FIT,

@@ -83,6 +83,9 @@ export class MissionSystem {
     return r;
   }
 
+  // Re-read localStorage — call after returning from a scene that may have claimed rewards.
+  sync() { this._loadOrReset(); }
+
   pendingCount()  { return this.missions.filter(m => m.done && !m.claimed).length; }
   allClaimed()    { return this.missions.every(m => m.claimed); }
   msUntilReset()  { return Math.max(0, this.resetAt - Date.now()); }

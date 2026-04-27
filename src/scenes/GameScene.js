@@ -73,6 +73,8 @@ export class GameScene extends Phaser.Scene {
       this.tweens.killTweensOf(this._dimOverlay);
       if (this._dimOverlay) this._dimOverlay.setAlpha(0);
       this.updateHUD();
+      // Re-sync missions — a sub-scene (MissionsScene) may have claimed rewards
+      this.missionSystem.sync();
       this._refreshMissionBadge();
       if (!this._villageCompleteShowing && GameState.buildings.every(lvl => lvl >= 3)) {
         this._villageCompleteShowing = true;
