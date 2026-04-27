@@ -40,7 +40,7 @@ export class RaidScene extends Phaser.Scene {
 
     // Animate in: zoom out from above with downward pan
     this.cameras.main.setZoom(2.0);
-    this.cameras.main.setScrollY(-60);
+    this.cameras.main.setScroll(0, -60);
     this.cameras.main.zoomTo(1.0, 700, 'Cubic.easeOut');
     this.tweens.add({ targets: this.cameras.main, scrollY: 0, duration: 600, ease: 'Cubic.easeOut' });
   }
