@@ -76,30 +76,63 @@ export class GameScene extends Phaser.Scene {
   // ─── BACKGROUND ────────────────────────────────────────────────────────────
 
   drawBackground(W, H) {
+    // Deep space gradient
     const bg = this.add.graphics();
-    bg.fillGradientStyle(0x05051A, 0x05051A, 0x0F0F40, 0x0F0F40, 1);
+    bg.fillGradientStyle(0x03031A, 0x03031A, 0x0D0D3A, 0x0D0D3A, 1);
     bg.fillRect(0, 0, W, H);
 
-    // Nebula clouds
+    // Nebula clouds — soft coloured glow patches
     const neb = this.add.graphics();
     [
-      [W * 0.15, H * 0.12, 110, 0x2E0A80, 0.07],
-      [W * 0.82, H * 0.18,  80, 0x0A2E80, 0.06],
-      [W * 0.50, H * 0.38, 140, 0x180A50, 0.05],
+      [W * 0.12, H * 0.10, 130, 0x3A0A90, 0.08],
+      [W * 0.85, H * 0.16,  90, 0x0A2E90, 0.07],
+      [W * 0.50, H * 0.36, 160, 0x1A0A5A, 0.06],
+      [W * 0.30, H * 0.22,  70, 0x0A5A3A, 0.05],
     ].forEach(([x, y, r, c, a]) => { neb.fillStyle(c, a); neb.fillCircle(x, y, r); });
 
-    // Stars
-    for (let i = 0; i < 90; i++) {
-      const r = Phaser.Math.FloatBetween(0.7, 2.4);
-      const a = Phaser.Math.FloatBetween(0.35, 1);
+    // Moon with halo
+    const moon = this.add.graphics();
+    moon.fillStyle(0xFFE8C0, 0.06); moon.fillCircle(W * 0.88, H * 0.09, 38);
+    moon.fillStyle(0xFFE8C0, 0.10); moon.fillCircle(W * 0.88, H * 0.09, 28);
+    moon.fillStyle(0xFFF5D0, 1);    moon.fillCircle(W * 0.88, H * 0.09, 18);
+    moon.fillStyle(0xFFFFFF, 0.55); moon.fillCircle(W * 0.84, H * 0.08, 10);
+    moon.fillStyle(0xE8D0A0, 0.35); moon.fillCircle(W * 0.91, H * 0.10, 7);
+
+    // Stars — two size classes
+    for (let i = 0; i < 110; i++) {
+      const big = Math.random() < 0.12;
+      const r   = big ? Phaser.Math.FloatBetween(1.4, 2.6) : Phaser.Math.FloatBetween(0.5, 1.2);
+      const a   = Phaser.Math.FloatBetween(0.4, 1.0);
       this.stars.push(
         this.add.circle(
           Phaser.Math.Between(0, W),
-          Phaser.Math.Between(0, H * 0.52),
+          Phaser.Math.Between(0, H * 0.50),
           r, 0xFFFFFF, a
         )
       );
     }
+
+    // Distant landscape silhouette (castle city on the horizon)
+    const sil = this.add.graphics();
+    const silY = H * 0.268;
+    sil.fillStyle(0x070718, 0.72);
+
+    // Rolling hills (filled circles anchored at silY)
+    [[0.04,70],[0.16,90],[0.28,68],[0.44,100],[0.60,75],[0.76,95],[0.92,70]]
+      .forEach(([fx, r]) => sil.fillCircle(W * fx, silY, r));
+
+    // Distant towers
+    [[0.20, 68, 13, 60], [0.45, 82, 18, 72], [0.72, 65, 11, 50]]
+      .forEach(([fx, topOff, tw, th]) => {
+        sil.fillRect(W*fx - tw/2, silY - topOff, tw, th);
+        // Battlements
+        for (let b = 0; b < 3; b++) {
+          sil.fillRect(W*fx - 5 + b*4, silY - topOff - 6, 3, 6);
+        }
+      });
+
+    // Fill ground below silhouette
+    sil.fillRect(0, silY - 2, W, 8);
   }
 
   animateStars() {
@@ -121,15 +154,38 @@ export class GameScene extends Phaser.Scene {
   drawKingdom(W, H) {
     const groundY = H * 0.28;
 
+    // ── Ground layers (back → front) ──────────────────────────────────────────
     const ground = this.add.graphics();
-    ground.fillStyle(0x1C4A18, 1);
-    ground.fillRect(0, groundY - 4, W, 30);
-    ground.fillStyle(0x2D6B28, 1);
-    ground.fillRect(0, groundY - 4, W, 12);
-    // Highlight strip
-    ground.fillStyle(0x3A8832, 0.5);
-    ground.fillRect(0, groundY - 4, W, 4);
 
+    // Dark earth fill below ground line
+    ground.fillStyle(0x111E0C, 1);
+    ground.fillRect(0, groundY + 16, W, 60);
+
+    // Main grass — 4 tones for depth
+    ground.fillStyle(0x1A3C14, 1);
+    ground.fillRect(0, groundY - 4, W, 30);
+    ground.fillStyle(0x225219, 1);
+    ground.fillRect(0, groundY - 4, W, 18);
+    ground.fillStyle(0x2C6620, 1);
+    ground.fillRect(0, groundY - 4, W, 9);
+    ground.fillStyle(0x389028, 1);
+    ground.fillRect(0, groundY - 4, W, 3);
+    ground.fillStyle(0x48AA36, 0.45);
+    ground.fillRect(0, groundY - 4, W, 1);
+
+    // Cobblestone / dirt path running full width
+    const pathY = groundY + 5;
+    ground.fillStyle(0x7A6A54, 0.68);
+    ground.fillRect(0, pathY, W, 15);
+    ground.lineStyle(1, 0x5A4A38, 0.40);
+    for (let sx = 4; sx < W; sx += 22) {
+      ground.strokeRect(sx, pathY + 2, 18, 11);
+    }
+    // Path highlight top edge
+    ground.fillStyle(0xAA9880, 0.28);
+    ground.fillRect(0, pathY, W, 2);
+
+    // ── Buildings ─────────────────────────────────────────────────────────────
     this.buildingGraphics = [];
     for (let i = 0; i < 6; i++) {
       const x = (W / 7) * (i + 1);
@@ -137,6 +193,23 @@ export class GameScene extends Phaser.Scene {
       drawBuilding(g, x, groundY, i, GameState.buildings[i]);
       this.buildingGraphics.push({ g, x, groundY, index: i });
     }
+
+    // ── Bushes between buildings ───────────────────────────────────────────────
+    [1.5, 2.5, 3.5, 4.5, 5.5].forEach(frac => {
+      const bx = (W / 7) * frac;
+      const bg = this.add.graphics();
+      bg.fillStyle(0x165210, 1);
+      bg.fillCircle(bx,     groundY - 3,  9);
+      bg.fillStyle(0x1E6618, 1);
+      bg.fillCircle(bx - 7, groundY - 6,  7);
+      bg.fillCircle(bx + 7, groundY - 6,  7);
+      bg.fillStyle(0x288A22, 0.85);
+      bg.fillCircle(bx,     groundY - 12, 5.5);
+      // Berry highlights
+      bg.fillStyle(0xFF5555, 0.72);
+      bg.fillCircle(bx - 4, groundY - 9,  1.8);
+      bg.fillCircle(bx + 5, groundY - 6,  1.5);
+    });
   }
 
   refreshKingdom() {
@@ -269,43 +342,71 @@ export class GameScene extends Phaser.Scene {
 
   drawHUD(W, H) {
     const panel = this.add.graphics();
-    panel.fillStyle(0x000000, 0.65);
-    panel.fillRoundedRect(8, 8, W - 16, 74, 14);
-    panel.lineStyle(1.5, 0xFFD700, 0.35);
-    panel.strokeRoundedRect(8, 8, W - 16, 74, 14);
 
-    // Capsule positions
+    // Outer glow ring
+    panel.fillStyle(0xFFD700, 0.04);
+    panel.fillRoundedRect(4, 4, W - 8, 82, 17);
+
+    // Main glass panel
+    panel.fillStyle(0x05051E, 0.82);
+    panel.fillRoundedRect(8, 8, W - 16, 74, 14);
+
+    // Glass sheen (top half lighter)
+    panel.fillStyle(0xFFFFFF, 0.05);
+    panel.fillRoundedRect(8, 8, W - 16, 36, 14);
+
+    // Gold border + inner silver line
+    panel.lineStyle(2, 0xFFD700, 0.60);
+    panel.strokeRoundedRect(8, 8, W - 16, 74, 14);
+    panel.lineStyle(1, 0xFFFFFF, 0.07);
+    panel.strokeRoundedRect(11, 11, W - 22, 68, 12);
+
+    // ── Three stat capsules ───────────────────────────────────────────────────
     const items = [
-      { x: W * 0.17, color: 0xFFD700,  textColor: '#FFD700',  label: 'COINS'   },
-      { x: W * 0.50, color: 0x5DADE2,  textColor: '#5DADE2',  label: 'SHIELDS' },
-      { x: W * 0.83, color: 0x2ECC71,  textColor: '#2ECC71',  label: 'SPINS'   },
+      { x: W * 0.17, color: 0xFFD700, label: 'COINS'   },
+      { x: W * 0.50, color: 0x5DADE2, label: 'SHIELDS' },
+      { x: W * 0.83, color: 0x2ECC71, label: 'SPINS'   },
     ];
 
     items.forEach(({ x, color, label }) => {
-      panel.fillStyle(color, 0.10);
-      panel.fillRoundedRect(x - 50, 30, 100, 30, 15);
-      panel.lineStyle(1.5, color, 0.55);
-      panel.strokeRoundedRect(x - 50, 30, 100, 30, 15);
+      // Capsule bg
+      panel.fillStyle(color, 0.12);
+      panel.fillRoundedRect(x - 52, 28, 104, 33, 16);
+      panel.lineStyle(1.5, color, 0.65);
+      panel.strokeRoundedRect(x - 52, 28, 104, 33, 16);
+      // Top glint inside capsule
+      panel.fillStyle(0xFFFFFF, 0.06);
+      panel.fillRoundedRect(x - 50, 29, 100, 14, 10);
 
-      this.add.text(x, 73, label, {
-        fontSize: '9px', fontFamily: 'Arial Black', color: `#${color.toString(16).padStart(6,'0')}`,
-        alpha: 0.65,
+      // Small icon dot
+      panel.fillStyle(color, 0.90);
+      panel.fillCircle(x - 32, 44, 5);
+      panel.fillStyle(0xFFFFFF, 0.35);
+      panel.fillCircle(x - 33, 43, 2.5);
+
+      this.add.text(x - 22, 74, label, {
+        fontSize: '8px', fontFamily: 'Arial Black',
+        color: `#${color.toString(16).padStart(6, '0')}`, alpha: 0.70,
       }).setOrigin(0.5);
     });
 
     this.coinIconX = W * 0.17;
     this.coinIconY = 45;
 
-    this.coinsText = this.add.text(W * 0.17, 45, `${GameState.coins.toLocaleString()}`, {
-      fontSize: '18px', fontFamily: 'Arial Black', color: '#FFD700',
+    // Stat values — offset right of the icon dot
+    this.coinsText = this.add.text(W * 0.17 + 4, 45, `${GameState.coins.toLocaleString()}`, {
+      fontSize: '16px', fontFamily: 'Arial Black', color: '#FFD700',
+      stroke: '#000000', strokeThickness: 3,
     }).setOrigin(0.5);
 
-    this.shieldText = this.add.text(W * 0.50, 45, `${GameState.shields}`, {
-      fontSize: '18px', fontFamily: 'Arial Black', color: '#5DADE2',
+    this.shieldText = this.add.text(W * 0.50 + 4, 45, `${GameState.shields}`, {
+      fontSize: '16px', fontFamily: 'Arial Black', color: '#5DADE2',
+      stroke: '#000000', strokeThickness: 3,
     }).setOrigin(0.5);
 
-    this.spinsText = this.add.text(W * 0.83, 45, `${GameState.spins}`, {
-      fontSize: '18px', fontFamily: 'Arial Black', color: '#2ECC71',
+    this.spinsText = this.add.text(W * 0.83 + 4, 45, `${GameState.spins}`, {
+      fontSize: '16px', fontFamily: 'Arial Black', color: '#2ECC71',
+      stroke: '#000000', strokeThickness: 3,
     }).setOrigin(0.5);
 
     // Chest inventory badge — appears below HUD when chests are waiting
@@ -472,7 +573,7 @@ export class GameScene extends Phaser.Scene {
     }).setOrigin(0.5);
 
     this.buildingGraphics.forEach(({ x, groundY, index }) => {
-      const hit = this.add.rectangle(x, groundY - 35, 52, 80, 0x000000, 0)
+      const hit = this.add.rectangle(x, groundY - 62, 60, 132, 0x000000, 0)
         .setInteractive({ useHandCursor: true });
       hit.on('pointerdown', () => this.onBuildingTap(index));
     });
