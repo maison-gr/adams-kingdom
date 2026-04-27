@@ -18,7 +18,7 @@ const SEGMENTS = [
   { label: '50',     color: 0x6C3483, light: 0xBB66FF, type: 'coins',  value: 50   },
   { label: 'SPIN+1', color: 0x0E6655, light: 0x40D9B0, type: 'spin',   value: 1    },
   { label: '1000',   color: 0x9A7D0A, light: 0xFFD700, type: 'coins',  value: 1000 },
-  { label: 'JACKPOT',color: 0x8B0000, light: 0xFF4444, type: 'coins',  value: 5000 },
+  { label: 'RAID',   color: 0x1A6B5A, light: 0x1ABC9C, type: 'raid',   value: 0    },
 ];
 
 const BUILDING_COSTS  = [500, 1500, 3000, 6000, 12000, 25000];
@@ -476,8 +476,9 @@ export class GameScene extends Phaser.Scene {
       (segment) => this._onWheelStopped(segment)
     );
 
-    // Pre-fetch raid target the moment the spin starts (1s head-start)
-    if (targetIndex >= 0 && SEGMENTS[targetIndex].type === 'attack') {
+    // Pre-fetch raid target the moment the spin starts (gives 4s head-start)
+    const spinType = targetIndex >= 0 ? SEGMENTS[targetIndex].type : '';
+    if (spinType === 'attack' || spinType === 'raid') {
       getRaidTarget(GameState.deviceId).then(t => { this._raidTarget = t; });
     }
   }

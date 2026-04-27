@@ -62,6 +62,19 @@ export class RewardSystem {
     });
   }
 
+  _on_raid(_segment) {
+    this._toast('RAID!', '#1ABC9C');
+    this._flashScreen(0x1ABC9C, 0.18, 380);
+
+    this.scene.time.delayedCall(900, () => {
+      this.scene.scene.sleep('GameScene');
+      this.scene.scene.launch('RaidScene', {
+        target:   this.scene._raidTarget,
+        deviceId: GameState.deviceId,
+      });
+    });
+  }
+
   _on_shield(_segment) {
     GameState.addShield();
     this._toast('SHIELD!', '#5DADE2');
