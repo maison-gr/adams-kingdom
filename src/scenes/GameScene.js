@@ -4,6 +4,7 @@ import {
   screenShake, upgradeEffect, shieldBubble,
 } from '../effects/juice.js';
 import { syncPlayer, getRaidTarget, recordAttack } from '../api/client.js';
+import { SpinSystem } from '../systems/SpinSystem.js';
 
 // ─── DATA ────────────────────────────────────────────────────────────────────
 
@@ -27,8 +28,8 @@ const BUILDING_COLORS = [0x27AE60, 0x8E44AD, 0x2980B9, 0xE67E22, 0xC0392B, 0xF39
 export class GameScene extends Phaser.Scene {
   constructor() {
     super('GameScene');
-    this.isSpinning   = false;
-    this.wheelAngle   = 0;
+    this.spinSystem    = new SpinSystem(SEGMENTS);
+    this.wheelAngle    = 0;
     this.attackOverlay = [];
     this.attackBldgs   = [];
     this.stars         = [];
@@ -41,7 +42,7 @@ export class GameScene extends Phaser.Scene {
     const H = this.scale.height;
 
     GameState.checkRefill();
-    this._raidTarget = null;
+    this._raidTarget  = null;
     syncPlayer(GameState);
     // Re-sync every 60 s
     this.time.addEvent({ delay: 60000, loop: true, callback: () => syncPlayer(GameState) });
@@ -530,60 +531,33 @@ export class GameScene extends Phaser.Scene {
   // ─── SPIN LOGIC ────────────────────────────────────────────────────────────
 
   onSpin() {
-    if (this.isSpinning) return;
+    if (this.spinSystem.isSpinning) return;
     if (!GameState.useSpin()) {
       this.showResult('No spins left!', '#FF4444');
       return;
     }
 
-    this.isSpinning = true;
     this.spinBtnText.setText('...');
     if (this.spinPulseTween) this.spinPulseTween.pause();
     if (this.spinGlow)       this.spinGlow.setVisible(false);
 
-    const n             = SEGMENTS.length;
-    const targetIndex   = Phaser.Math.Between(0, n - 1);
-    const slice         = (Math.PI * 2) / n;
-    const minExtraSpins = Phaser.Math.Between(5, 8);
-    const TWO_PI        = Math.PI * 2;
-    const targetMod     = ((-(targetIndex + 0.5) * slice) % TWO_PI + TWO_PI) % TWO_PI;
-    const k             = Math.ceil((this.wheelAngle + minExtraSpins * TWO_PI - targetMod) / TWO_PI);
-    const finalAngle    = k * TWO_PI + targetMod;
+    const targetIndex = this.spinSystem.spin(
+      this,
+      angle => { this.wheelAngle = angle; this.drawWheelGraphics(angle); },
+      (segment) => this._onWheelStopped(segment)
+    );
 
-    const startAngle    = this.wheelAngle;
-    const totalRotation = finalAngle - startAngle;
-    const duration      = 4000;
-    const startTime     = Date.now();
-
-    // Ease-out quart — strong deceleration, no overshoot
-    const ease = t => 1 - Math.pow(1 - t, 4);
-
-    const animate = () => {
-      const t = Math.min((Date.now() - startTime) / duration, 1);
-      this.wheelAngle = startAngle + totalRotation * ease(t);
-      this.drawWheelGraphics(this.wheelAngle);
-
-      if (t < 1) {
-        requestAnimationFrame(animate);
-      } else {
-        this.wheelAngle = finalAngle;
-        this._onWheelStopped(targetIndex);
-      }
-    };
-    requestAnimationFrame(animate);
-  }
-
-  _onWheelStopped(targetIndex) {
-    const seg = SEGMENTS[targetIndex];
-    burstParticles(this, this.wheelCx, this.wheelCy - this.wheelR, [seg.color, seg.light, 0xFFFFFF], 14);
-
-    // Pre-fetch raid target while the win animation plays
-    if (seg.type === 'attack') {
+    // Pre-fetch raid target the moment the spin starts (1s head-start)
+    if (targetIndex >= 0 && SEGMENTS[targetIndex].type === 'attack') {
       getRaidTarget(GameState.deviceId).then(t => { this._raidTarget = t; });
     }
+  }
+
+  _onWheelStopped(segment) {
+    burstParticles(this, this.wheelCx, this.wheelCy - this.wheelR, [segment.color, segment.light, 0xFFFFFF], 14);
 
     this.time.delayedCall(180, () => {
-      this.applyOutcome(seg);
+      this.applyOutcome(segment);
       if (this.spinPulseTween) this.spinPulseTween.resume();
       if (this.spinGlow)       this.spinGlow.setVisible(true);
     });
