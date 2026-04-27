@@ -29,7 +29,6 @@ export class AttackScene extends Phaser.Scene {
 
     // Animate in: zoom out from close-up
     this.cameras.main.setZoom(2.0);
-    this.tweens.add({ targets: this.cameras.main, alpha: 1, duration: 180 });
     this.cameras.main.zoomTo(1.0, 650, 'Cubic.easeOut');
   }
 

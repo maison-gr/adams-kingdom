@@ -2,6 +2,14 @@ import { GameState } from '../GameState.js';
 
 const RESET_MS = 24 * 60 * 60 * 1000;
 
+function shuffle(arr) {
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
 // Full pool — 3 are picked randomly each reset
 const POOL = [
   { id: 'spin_15',    label: 'Spin 15 times',          key: 'spins',    target: 15,   reward: { coins: 500 } },
@@ -35,7 +43,7 @@ export class MissionSystem {
   }
 
   _generateNew() {
-    const shuffled = [...POOL].sort(() => Math.random() - 0.5);
+    const shuffled = shuffle([...POOL]);
     this.missions  = shuffled.slice(0, 3).map(tpl => ({
       ...tpl, progress: 0, done: false, claimed: false,
     }));

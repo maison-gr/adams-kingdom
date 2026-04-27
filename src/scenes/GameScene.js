@@ -65,16 +65,19 @@ export class GameScene extends Phaser.Scene {
     const loginBonus    = new LoginStreak().check();
     this._raidTarget  = null;
     syncPlayer(GameState);
+    this._villageCompleteShowing = false;
     this.events.on('wake', () => {
-      // Zoom-out return effect (arriving back from any sub-scene)
-      this.cameras.main.setZoom(2.0);
+      // Smooth zoom-out from whatever state the camera was left in
       this.cameras.main.zoomTo(1.0, 600, 'Cubic.easeOut');
       // Reset any spin overlay that might have been left mid-spin
       this.tweens.killTweensOf(this._dimOverlay);
       if (this._dimOverlay) this._dimOverlay.setAlpha(0);
       this.updateHUD();
       this._refreshMissionBadge();
-      if (GameState.buildings.every(lvl => lvl >= 3)) this._showVillageComplete();
+      if (!this._villageCompleteShowing && GameState.buildings.every(lvl => lvl >= 3)) {
+        this._villageCompleteShowing = true;
+        this._showVillageComplete();
+      }
     });
 
     const showOffline = offlineEarned > 0 ? () => this._showOfflineEarnings(offlineEarned) : null;
@@ -103,13 +106,12 @@ export class GameScene extends Phaser.Scene {
     this.animateStars();
 
     // Reusable overlay objects — create once at top depth, alpha 0
-    this._dimOverlay   = this.add.rectangle(W / 2, H / 2, W, H, 0x000000, 0).setDepth(8);
-    this._flashOverlay = this.add.rectangle(W / 2, H / 2, W, H, 0xFFFFFF, 0).setDepth(47);
-    this._feverTint    = this.add.rectangle(W / 2, H / 2, W, H, 0xFF6600, 0)
+    this._dimOverlay = this.add.rectangle(W / 2, H / 2, W, H, 0x000000, 0).setDepth(8);
+    this._feverTint  = this.add.rectangle(W / 2, H / 2, W, H, 0xFF6600, 0)
       .setDepth(2).setBlendMode(Phaser.BlendModes.ADD);
 
     this._playOpeningSequence();
-    this._startChimneySmoke(W);
+    this._startChimneySmoke();
     this._showFirstTimeTutorial(W, H);
   }
 
@@ -1044,7 +1046,8 @@ export class GameScene extends Phaser.Scene {
     this.missionSystem.progress('upgrades');
     this._refreshMissionBadge();
 
-    if (GameState.buildings.every(lvl => lvl >= 3)) {
+    if (!this._villageCompleteShowing && GameState.buildings.every(lvl => lvl >= 3)) {
+      this._villageCompleteShowing = true;
       this.time.delayedCall(900, () => this._showVillageComplete());
     }
 
@@ -1179,7 +1182,6 @@ export class GameScene extends Phaser.Scene {
 
   _refreshMissionBadge() {
     if (!this._missionDot) return;
-    this.missionSystem = new MissionSystem(); // re-read latest localStorage
     const n = this.missionSystem.pendingCount();
     this._missionDot.setVisible(n > 0);
     this._missionDotText.setText(n > 0 ? String(n) : '');
@@ -1528,6 +1530,7 @@ export class GameScene extends Phaser.Scene {
     const claim = () => {
       if (claimed) return;
       claimed = true;
+      this._villageCompleteShowing = false;
       GameState.nextVillage();
       GameState.addSpins(bonusSpins);
       GameState.addCoins(bonusCoins);
@@ -1789,37 +1792,27 @@ export class GameScene extends Phaser.Scene {
     this.cameras.main.zoomTo(1.0, 700, 'Cubic.easeOut');
   }
 
-  // ─── SCREEN FLASH HELPER ─────────────────────────────────────────────────
-
-  _flash(color, alpha, duration) {
-    const { width: W, height: H } = this.scale;
-    this._flashOverlay.setFillStyle(color, alpha).setAlpha(alpha);
-    this.tweens.killTweensOf(this._flashOverlay);
-    this.tweens.add({ targets: this._flashOverlay, alpha: 0, duration });
-  }
-
   // ─── CHIMNEY SMOKE ────────────────────────────────────────────────────────
 
-  _startChimneySmoke(W) {
-    const smokePositions = [
-      W * 0.20,
-      W * 0.50,
-      W * 0.80,
-    ];
-
+  _startChimneySmoke() {
     this.time.addEvent({
       delay: 1800,
       loop: true,
       callback: () => {
         if (!this.buildingGraphics?.length) return;
-        const pos = smokePositions[Phaser.Math.Between(0, smokePositions.length - 1)];
-        const groundY = this.scale.height * 0.72;
+        // Only smoke from buildings that are built (level > 0)
+        const active = this.buildingGraphics.filter(
+          b => (GameState.buildings[b.index] ?? 0) > 0
+        );
+        if (!active.length) return;
+        const { x, groundY } = active[Phaser.Math.Between(0, active.length - 1)];
+        // Building tops sit roughly 50-70px above groundY
         const puff = this.add.circle(
-          pos + Phaser.Math.Between(-6, 6),
-          groundY - 48,
+          x + Phaser.Math.Between(-5, 5),
+          groundY - 58,
           Phaser.Math.Between(4, 8),
           0xCCCCCC,
-          0.32,
+          0.30,
         ).setDepth(1);
 
         this.tweens.add({

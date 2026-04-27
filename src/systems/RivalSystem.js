@@ -1,5 +1,13 @@
 // AI rival system — 3 persistent rivals per player, simulated offline attacks.
 
+function shuffle(arr) {
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
 const RIVAL_NAMES = [
   'Storm Knight', 'Lady Frost',  'Iron Duke',
   'Shadow Fox',   'Golden Sage', 'Dark Empress',
@@ -40,7 +48,7 @@ export class RivalSystem {
   }
 
   _generateRivals() {
-    const shuffled = [...RIVAL_NAMES].sort(() => Math.random() - 0.5);
+    const shuffled = shuffle([...RIVAL_NAMES]);
     this.rivals = shuffled.slice(0, 3).map((name, i) => ({
       name,
       level:          4 + i * 3,               // 4 / 7 / 10
