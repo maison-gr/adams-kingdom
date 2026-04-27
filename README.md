@@ -17,6 +17,7 @@
 ```
 
 **A Coin Master-style mobile kingdom builder — spin, attack, raid, build.**
+**Premium hand-crafted visuals — every building drawn with code, no sprites required.**
 
 [![Phaser](https://img.shields.io/badge/Phaser-3.88-blue?style=for-the-badge&logo=javascript)](https://phaser.io)
 [![Vite](https://img.shields.io/badge/Vite-5.4-646CFF?style=for-the-badge&logo=vite)](https://vitejs.dev)
@@ -35,6 +36,8 @@
 A fully playable mobile game built with **Phaser.js + Capacitor** — no Unity, no native code, just web tech packaged as a real iOS/Android app.
 
 Spin a gold wheel. Win coins to upgrade your kingdom. Attack rival villages. Dig for buried treasure. Open chests for rare rewards. Every spin matters.
+
+Every pixel is drawn with **Phaser Graphics primitives** — no external art assets. The game features a deep-sky night background with a glowing moon halo and distant city silhouette, a cobblestone kingdom path lined with bushes, 6 architecturally distinct buildings that evolve across 4 levels, and a glass-morphism HUD panel with inner glow and double-border styling.
 
 ---
 
@@ -72,13 +75,24 @@ Spin a gold wheel. Win coins to upgrade your kingdom. Attack rival villages. Dig
 
 ### 🏰 Your Kingdom
 
-Six buildings that grow through **4 upgrade levels** — from crumbling ruins to a towering palace:
+Six architecturally distinct buildings, each growing through **4 upgrade levels** — from crumbling ruins to a towering palace:
 
 ```
 Farm  ──▶  Mill  ──▶  Barracks  ──▶  Market  ──▶  Castle  ──▶  Palace
  [0]        [1]          [2]            [3]           [4]          [5]
 Ruins   →  Built   →  Windows   →  Flagpole   (each with 4 upgrade levels)
 ```
+
+| Building | Style | Signature Features |
+|:--------:|:-----:|:-------------------|
+| 🌾 Farm | Barn red + gable roof | Hay door, fence posts, weathervane at max level |
+| 🌬️ Mill | Tall amber tower | Rotating cross sails, cone cap, arched door |
+| ⚔️ Barracks | Slate blue fortress | Crenellated battlements, arrow-slit windows, gate arch |
+| 🏪 Market | Warm terracotta | Awning canopy, stall windows, hanging lanterns at max level |
+| 🏰 Castle | Dark stone keep | Flanking round towers, portcullis, pennant flag |
+| 🏛️ Palace | Royal purple dome | Onion dome with gold spire, colonnaded facade, ornate crown |
+
+All buildings are rendered entirely with **Phaser Graphics primitives** — 3D body illusion (lit face, side wall, roof), hand-placed windows, doors, and level-specific decorations. Ruins state uses a collapsed-wall silhouette with rubble piles.
 
 ### 🎁 Chest Tiers
 
@@ -207,11 +221,12 @@ Phase 4 — Ship       ░░░░░░░░░░░░░░░░░░░
 - [x] ChestScene — lid-pop ceremony, 3 typed reward cards
 - [x] Chest inventory with Wooden / Silver / Golden tiers
 - [x] Spin refill timer (1 spin / 5 min, up to 50)
+- [x] Major UI/UX overhaul — unique building art, night sky, glass-morphism HUD
 
 **Phase 2 — Social** 🔨
 - [x] Node.js + MongoDB backend — player sync, raid targets
 - [x] Capacitor 6 — iOS + Android packaging
-- [ ] In-game leaderboard screen
+- [x] In-game leaderboard screen (top 10 by coins, trophy button in HUD)
 - [ ] Push notifications (daily free spins)
 
 **Phase 3 — Monetize** 📋

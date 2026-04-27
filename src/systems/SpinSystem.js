@@ -28,9 +28,17 @@ export class SpinSystem {
     if (this.spinning) return -1;
     this.spinning = true;
 
-    const n           = this.segments.length;
-    const slice       = TWO_PI / n;
-    const targetIndex = Phaser.Math.Between(0, n - 1);
+    const n     = this.segments.length;
+    const slice = TWO_PI / n;
+
+    // Weighted random selection — segments with no weight default to 1
+    const totalWeight = this.segments.reduce((s, seg) => s + (seg.weight ?? 1), 0);
+    let roll = Math.random() * totalWeight;
+    let targetIndex = n - 1;
+    for (let i = 0; i < n; i++) {
+      roll -= (this.segments[i].weight ?? 1);
+      if (roll <= 0) { targetIndex = i; break; }
+    }
     const extraSpins  = Phaser.Math.Between(5, 8);
 
     // Exact angle that perfectly centers targetIndex under the top pointer:

@@ -2,23 +2,30 @@ import { GameState } from '../GameState.js';
 import {
   flyingCoins, burstParticles, goldRain,
   screenShake, upgradeEffect, shieldBubble,
+  nearMissFlash, feverActivate, feverEnd, streakBurst,
 } from '../effects/juice.js';
 import { syncPlayer, getRaidTarget, recordAttack } from '../api/client.js';
 import { SpinSystem }    from '../systems/SpinSystem.js';
 import { RewardSystem }  from '../systems/RewardSystem.js';
+import { ComboSystem }    from '../systems/ComboSystem.js';
+import { MissionSystem } from '../systems/MissionSystem.js';
+import { RivalSystem }   from '../systems/RivalSystem.js';
 import { drawBuilding, BUILDING_COLORS } from '../utils/buildingRenderer.js';
 
 // ─── DATA ────────────────────────────────────────────────────────────────────
 
+// weight controls probability — higher = more frequent.
+// JACKPOT sits between SHIELD and CHEST so landing either triggers near-miss.
 const SEGMENTS = [
-  { label: '100',    color: 0xC0392B, light: 0xFF7070, type: 'coins',  value: 100  },
-  { label: 'ATTACK', color: 0xD35400, light: 0xFFA040, type: 'attack', value: 0    },
-  { label: '500',    color: 0x1A8A4A, light: 0x55DD88, type: 'coins',  value: 500  },
-  { label: 'SHIELD', color: 0x1A5276, light: 0x5DADE2, type: 'shield', value: 0    },
-  { label: 'CHEST',  color: 0x1A5C4A, light: 0x1ABC9C, type: 'chest',  value: 0    },
-  { label: 'SPIN+1', color: 0x0E6655, light: 0x40D9B0, type: 'spin',   value: 1    },
-  { label: '1000',   color: 0x9A7D0A, light: 0xFFD700, type: 'coins',  value: 1000 },
-  { label: 'RAID',   color: 0x1A6B5A, light: 0x1ABC9C, type: 'raid',   value: 0    },
+  { label: '100',     color: 0xC0392B, light: 0xFF7070, type: 'coins',   value: 100,  weight: 10 },
+  { label: 'ATTACK',  color: 0xD35400, light: 0xFFA040, type: 'attack',  value: 0,    weight: 8  },
+  { label: '500',     color: 0x1A8A4A, light: 0x55DD88, type: 'coins',   value: 500,  weight: 9  },
+  { label: 'SHIELD',  color: 0x1A5276, light: 0x5DADE2, type: 'shield',  value: 0,    weight: 7  },
+  { label: 'JACKPOT', color: 0x5A3800, light: 0xFFD700, type: 'jackpot', value: 5000, weight: 1  },
+  { label: 'CHEST',   color: 0x1A5C4A, light: 0x1ABC9C, type: 'chest',   value: 0,    weight: 6  },
+  { label: 'SPIN+1',  color: 0x0E6655, light: 0x40D9B0, type: 'spin',    value: 1,    weight: 9  },
+  { label: '1000',    color: 0x9A7D0A, light: 0xFFD700, type: 'coins',   value: 1000, weight: 7  },
+  { label: 'RAID',    color: 0x1A6B5A, light: 0x1ABC9C, type: 'raid',    value: 0,    weight: 8  },
 ];
 
 const BUILDING_COSTS  = [500, 1500, 3000, 6000, 12000, 25000];
@@ -31,10 +38,16 @@ export class GameScene extends Phaser.Scene {
     super('GameScene');
     this.spinSystem    = new SpinSystem(SEGMENTS);
     this.rewardSystem  = new RewardSystem(this);
+    this.comboSystem   = new ComboSystem();
+    this.missionSystem = new MissionSystem();
+    this.rivalSystem   = new RivalSystem();
     this.wheelAngle    = 0;
     this.attackOverlay = [];
     this.attackBldgs   = [];
     this.stars         = [];
+    this._outcomePending       = false;
+    this._attackTargetOverlay  = [];
+    this._rivalBannerOverlay   = [];
   }
 
   // ─── LIFECYCLE ─────────────────────────────────────────────────────────────
@@ -46,7 +59,16 @@ export class GameScene extends Phaser.Scene {
     GameState.checkRefill();
     this._raidTarget  = null;
     syncPlayer(GameState);
-    this.events.on('wake', () => this.updateHUD());
+    this.events.on('wake', () => {
+      this.updateHUD();
+      this._refreshMissionBadge();
+    });
+
+    // Check if a rival attacked while the player was away
+    const rivalAttack = this.rivalSystem.checkOfflineAttack();
+    if (rivalAttack) {
+      this.time.delayedCall(1200, () => this._showRivalAttackBanner(rivalAttack));
+    }
     // Re-sync every 60 s
     this.time.addEvent({ delay: 60000, loop: true, callback: () => syncPlayer(GameState) });
 
@@ -256,6 +278,20 @@ export class GameScene extends Phaser.Scene {
     this.add.circle(cx, cy, 11, 0xFFF8DC, 0.85);
     const hubRim = this.add.circle(cx, cy, 24);
     hubRim.setStrokeStyle(2, 0x5C3D00);
+
+    // Fever glow ring (hidden until fever activates)
+    this.feverRing = this.add.graphics().setDepth(9).setAlpha(0);
+
+    // Combo HUD — floats above hub, depth above wheel labels
+    this.comboText = this.add.text(cx, cy - 4, '', {
+      fontSize: '14px', fontFamily: 'Arial Black',
+      color: '#FF6600', stroke: '#000000', strokeThickness: 2,
+    }).setOrigin(0.5).setDepth(14);
+
+    this.feverCountText = this.add.text(cx, cy + 11, '', {
+      fontSize: '10px', fontFamily: 'Arial Black',
+      color: '#FFD700', stroke: '#000000', strokeThickness: 2,
+    }).setOrigin(0.5).setDepth(14);
   }
 
   drawWheelGraphics(rotation) {
@@ -308,16 +344,33 @@ export class GameScene extends Phaser.Scene {
       g.closePath();
       g.strokePath();
 
+      // Extra gold shimmer for JACKPOT segment
+      if (seg.type === 'jackpot') {
+        g.fillStyle(0xFFD700, 0.20);
+        g.beginPath();
+        g.moveTo(cx, cy);
+        g.arc(cx, cy, r, startAngle, endAngle, false);
+        g.closePath();
+        g.fillPath();
+        g.lineStyle(2, 0xFFD700, 0.65);
+        g.beginPath();
+        g.moveTo(cx, cy);
+        g.arc(cx, cy, r - 1, startAngle, endAngle, false);
+        g.closePath();
+        g.strokePath();
+      }
+
       // Label
-      const lx  = cx + Math.cos(mid) * r * 0.72;
-      const ly  = cy + Math.sin(mid) * r * 0.72;
-      const fz  = seg.label.length > 5 ? '11px' : '13px';
+      const lx        = cx + Math.cos(mid) * r * 0.72;
+      const ly        = cy + Math.sin(mid) * r * 0.72;
+      const fz        = seg.label.length > 5 ? '11px' : '13px';
+      const isJackpot = seg.type === 'jackpot';
       const lbl = this.add.text(lx, ly, seg.label, {
         fontSize: fz,
         fontFamily: 'Arial Black',
-        color: '#FFFFFF',
+        color: isJackpot ? '#FFD700' : '#FFFFFF',
         stroke: '#000000',
-        strokeThickness: 4,
+        strokeThickness: isJackpot ? 5 : 4,
       }).setOrigin(0.5);
       this.wheelLabels.push(lbl);
     }
@@ -363,9 +416,9 @@ export class GameScene extends Phaser.Scene {
 
     // ── Three stat capsules ───────────────────────────────────────────────────
     const items = [
-      { x: W * 0.17, color: 0xFFD700, label: 'COINS'   },
+      { x: W * 0.25, color: 0xFFD700, label: 'COINS'   },
       { x: W * 0.50, color: 0x5DADE2, label: 'SHIELDS' },
-      { x: W * 0.83, color: 0x2ECC71, label: 'SPINS'   },
+      { x: W * 0.75, color: 0x2ECC71, label: 'SPINS'   },
     ];
 
     items.forEach(({ x, color, label }) => {
@@ -390,11 +443,11 @@ export class GameScene extends Phaser.Scene {
       }).setOrigin(0.5);
     });
 
-    this.coinIconX = W * 0.17;
+    this.coinIconX = W * 0.25;
     this.coinIconY = 45;
 
     // Stat values — offset right of the icon dot
-    this.coinsText = this.add.text(W * 0.17 + 4, 45, `${GameState.coins.toLocaleString()}`, {
+    this.coinsText = this.add.text(W * 0.25 + 4, 45, `${GameState.coins.toLocaleString()}`, {
       fontSize: '16px', fontFamily: 'Arial Black', color: '#FFD700',
       stroke: '#000000', strokeThickness: 3,
     }).setOrigin(0.5);
@@ -404,10 +457,57 @@ export class GameScene extends Phaser.Scene {
       stroke: '#000000', strokeThickness: 3,
     }).setOrigin(0.5);
 
-    this.spinsText = this.add.text(W * 0.83 + 4, 45, `${GameState.spins}`, {
+    this.spinsText = this.add.text(W * 0.75 + 4, 45, `${GameState.spins}`, {
       fontSize: '16px', fontFamily: 'Arial Black', color: '#2ECC71',
       stroke: '#000000', strokeThickness: 3,
     }).setOrigin(0.5);
+
+    // Missions button — left side of HUD panel (mirror of trophy button)
+    const missX = W * 0.07;
+    const missY = 44;
+    panel.fillStyle(0x0A2A16, 0.55);
+    panel.fillCircle(missX, missY, 22);
+    panel.fillStyle(0x27AE60, 0.80);
+    panel.fillCircle(missX, missY, 18);
+    panel.lineStyle(1.5, 0x2ECC71, 0.70);
+    panel.strokeCircle(missX, missY, 18);
+    panel.fillStyle(0xFFFFFF, 0.18);
+    panel.fillCircle(missX - 5, missY - 6, 9);
+    this.add.text(missX, missY + 1, '📋', { fontSize: '17px' }).setOrigin(0.5).setDepth(2);
+    this.add.circle(missX, missY, 22, 0x000000, 0)
+      .setInteractive({ useHandCursor: true })
+      .setDepth(3)
+      .on('pointerdown', () => {
+        this.scene.sleep('GameScene');
+        this.scene.launch('MissionsScene');
+      });
+
+    // Pending-missions notification dot (shown when claims are ready)
+    this._missionDot = this.add.circle(missX + 13, missY - 13, 7, 0xFF3333, 1).setDepth(4);
+    this._missionDotText = this.add.text(missX + 13, missY - 13, '', {
+      fontSize: '9px', fontFamily: 'Arial Black', color: '#FFFFFF',
+    }).setOrigin(0.5).setDepth(5);
+    this._refreshMissionBadge();
+
+    // Leaderboard trophy button — right side of HUD panel
+    const lbX = W * 0.93;
+    const lbY = 44;
+    panel.fillStyle(0x7A5800, 0.55);
+    panel.fillCircle(lbX, lbY, 22);
+    panel.fillStyle(0xD4A017, 0.80);
+    panel.fillCircle(lbX, lbY, 18);
+    panel.lineStyle(1.5, 0xFFD700, 0.70);
+    panel.strokeCircle(lbX, lbY, 18);
+    panel.fillStyle(0xFFF5CC, 0.30);
+    panel.fillCircle(lbX - 5, lbY - 6, 9);
+    this.add.text(lbX, lbY + 1, '🏆', { fontSize: '17px' }).setOrigin(0.5).setDepth(2);
+    this.add.circle(lbX, lbY, 22, 0x000000, 0)
+      .setInteractive({ useHandCursor: true })
+      .setDepth(3)
+      .on('pointerdown', () => {
+        this.scene.sleep('GameScene');
+        this.scene.launch('LeaderboardScene');
+      });
 
     // Chest inventory badge — appears below HUD when chests are waiting
     this._chestBadgeBg = this.add.graphics().setDepth(1);
@@ -591,20 +691,23 @@ export class GameScene extends Phaser.Scene {
   // ─── SPIN LOGIC ────────────────────────────────────────────────────────────
 
   onSpin() {
-    if (this.spinSystem.isSpinning) return;
+    if (this.spinSystem.isSpinning || this._outcomePending) return;
     if (!GameState.useSpin()) {
       this.showResult('No spins left!', '#FF4444');
       return;
     }
 
+    this._outcomePending = true;
     this.spinBtnText.setText('...');
+    this.missionSystem.progress('spins');
+    this._refreshMissionBadge();
     if (this.spinPulseTween) this.spinPulseTween.pause();
     if (this.spinGlow)       this.spinGlow.setVisible(false);
 
     const targetIndex = this.spinSystem.spin(
       this,
       angle => { this.wheelAngle = angle; this.drawWheelGraphics(angle); },
-      (segment) => this._onWheelStopped(segment)
+      (segment, idx) => this._onWheelStopped(segment, idx)
     );
 
     // Pre-fetch raid target the moment the spin starts (gives 4s head-start)
@@ -614,10 +717,15 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
-  _onWheelStopped(segment) {
-    burstParticles(this, this.wheelCx, this.wheelCy - this.wheelR, [segment.color, segment.light, 0xFFFFFF], 14);
+  _onWheelStopped(segment, targetIndex) {
+    const { width: W, height: H } = this.scale;
+    burstParticles(this, this.wheelCx, this.wheelCy - this.wheelR,
+      [segment.color, segment.light, 0xFFFFFF], 14);
 
-    this.time.delayedCall(180, () => {
+    const nearMiss = this._isNearMiss(targetIndex);
+    if (nearMiss) nearMissFlash(this, W, H);
+
+    this.time.delayedCall(nearMiss ? 1900 : 180, () => {
       this.applyOutcome(segment);
       if (this.spinPulseTween) this.spinPulseTween.resume();
       if (this.spinGlow)       this.spinGlow.setVisible(true);
@@ -625,8 +733,89 @@ export class GameScene extends Phaser.Scene {
   }
 
   applyOutcome(segment) {
+    this._outcomePending = false;
     this.spinBtnText.setText('SPIN');
-    this.rewardSystem.handle(segment);
+    const comboResult = this.comboSystem.record(segment.type);
+    this._handleComboEvents(comboResult);
+    this.rewardSystem.handle(segment, comboResult);
+    this._updateComboHUD();
+  }
+
+  _isNearMiss(targetIndex) {
+    if (SEGMENTS[targetIndex].type === 'jackpot') return false;
+    const n    = SEGMENTS.length;
+    const jIdx = SEGMENTS.findIndex(s => s.type === 'jackpot');
+    const prev = (jIdx - 1 + n) % n;
+    const next = (jIdx + 1) % n;
+    return targetIndex === prev || targetIndex === next;
+  }
+
+  _handleComboEvents(result) {
+    const { width: W, height: H } = this.scale;
+    const cx = this.wheelCx;
+    const cy = this.wheelCy;
+
+    if (result.feverTriggered) {
+      feverActivate(this, W, H);
+      this.tweens.killTweensOf(this.feverRing);
+      this.feverRing.setAlpha(1);
+      this.tweens.add({
+        targets: this.feverRing,
+        alpha: { from: 0.5, to: 1 },
+        yoyo: true, repeat: -1,
+        duration: 580, ease: 'Sine.easeInOut',
+      });
+    } else if (result.feverEnded) {
+      feverEnd(this, W, H);
+      this.tweens.killTweensOf(this.feverRing);
+      this.tweens.add({
+        targets: this.feverRing,
+        alpha: 0, duration: 600, ease: 'Power2',
+      });
+    } else if (result.streakBroken && this.comboText) {
+      this.tweens.add({
+        targets: [this.comboText, this.feverCountText],
+        scaleX: 0.1, scaleY: 0.1, alpha: 0,
+        duration: 280, ease: 'Power2',
+        onComplete: () => {
+          this.comboText.setScale(1).setAlpha(1);
+          this.feverCountText.setScale(1).setAlpha(1);
+        },
+      });
+    } else if (result.streak && result.streak >= 2) {
+      streakBurst(this, cx, cy, result.streak);
+      if (result.streak >= 3) {
+        this.missionSystem.progress('combo', result.streak);
+        this._refreshMissionBadge();
+      }
+    }
+  }
+
+  _updateComboHUD() {
+    const cs  = this.comboSystem;
+    const cx  = this.wheelCx;
+    const cy  = this.wheelCy;
+
+    this.feverRing.clear();
+
+    if (cs.feverActive) {
+      // Pulsing double gold ring around the wheel
+      this.feverRing.lineStyle(7, 0xFFD700, 0.75);
+      this.feverRing.strokeCircle(cx, cy, this.wheelR + 9);
+      this.feverRing.lineStyle(3, 0xFF8C00, 0.50);
+      this.feverRing.strokeCircle(cx, cy, this.wheelR + 17);
+
+      this.comboText.setText('🔥').setStyle({ fontSize: '20px', color: '#FFD700' });
+      this.feverCountText.setText(`×2  ${cs.feverLeft} left`).setStyle({ color: '#FFCC00' });
+    } else if (cs.streak >= 2) {
+      this.comboText.setText(`🔥${cs.streak}`).setStyle({ fontSize: '13px', color: '#FF6600' });
+      this.feverCountText.setText(
+        cs.streak >= 3 ? `×${cs.multiplier === Math.floor(cs.multiplier) ? cs.multiplier : cs.multiplier.toFixed(1)}` : ''
+      ).setStyle({ color: '#FFAA44' });
+    } else {
+      this.comboText.setText('');
+      this.feverCountText.setText('');
+    }
   }
 
   showResult(msg, color) {
@@ -674,6 +863,8 @@ export class GameScene extends Phaser.Scene {
     this.refreshKingdom();
     this.showResult(`${BUILDING_NAMES[index]} upgraded!`, '#2ECC71');
     this.updateHUD();
+    this.missionSystem.progress('upgrades');
+    this._refreshMissionBadge();
 
     const { x, groundY } = this.buildingGraphics[index];
     upgradeEffect(this, x, groundY - 30, BUILDING_COLORS[index]);
@@ -800,6 +991,206 @@ export class GameScene extends Phaser.Scene {
     this.attackOverlay.forEach(o => o.destroy());
     this.attackOverlay = [];
     this.attackBldgs   = [];
+  }
+
+  // ─── MISSION BADGE ─────────────────────────────────────────────────────────
+
+  _refreshMissionBadge() {
+    if (!this._missionDot) return;
+    this.missionSystem = new MissionSystem(); // re-read latest localStorage
+    const n = this.missionSystem.pendingCount();
+    this._missionDot.setVisible(n > 0);
+    this._missionDotText.setText(n > 0 ? String(n) : '');
+  }
+
+  // ─── RIVAL ATTACK BANNER ───────────────────────────────────────────────────
+
+  _showRivalAttackBanner(attackInfo) {
+    const W = this.scale.width;
+    const D = 30;
+    const FY = 8;     // final top edge of panel
+    const OFF = -110; // start offset (above screen)
+
+    this._rivalBannerOverlay.forEach(o => o.destroy());
+    this._rivalBannerOverlay = [];
+    const track = obj => { this._rivalBannerOverlay.push(obj); return obj; };
+
+    const slide = (obj, finalY) => {
+      obj.y = finalY + OFF;
+      this.tweens.add({ targets: obj, y: finalY, duration: 400, ease: 'Back.easeOut' });
+      return obj;
+    };
+
+    // Panel background
+    const panelG = track(this.add.graphics().setDepth(D));
+    panelG.fillStyle(0x1A0000, 0.96);
+    panelG.fillRoundedRect(8, FY, W - 16, 88, 12);
+    panelG.lineStyle(2, 0xFF4444, 0.65);
+    panelG.strokeRoundedRect(8, FY, W - 16, 88, 12);
+    slide(panelG, 0);
+
+    slide(track(this.add.text(W / 2, FY + 26, `⚔️  ${attackInfo.rivalName} attacked!`, {
+      fontSize: '16px', fontFamily: 'Arial Black',
+      color: '#FF4444', stroke: '#000', strokeThickness: 3,
+    }).setOrigin(0.5).setDepth(D + 1)), 0);
+
+    slide(track(this.add.text(W / 2, FY + 50, 'A building was damaged while you were away', {
+      fontSize: '11px', fontFamily: 'Arial', color: '#BB7777',
+    }).setOrigin(0.5).setDepth(D + 1)), 0);
+
+    // REVENGE button
+    const rvG = track(this.add.graphics().setDepth(D + 1));
+    rvG.fillStyle(0x880000, 1); rvG.fillRoundedRect(W * 0.22 - 56, FY + 64, 112, 26, 7);
+    rvG.fillStyle(0xCC1100, 1); rvG.fillRoundedRect(W * 0.22 - 56, FY + 64, 112, 18, 7);
+    rvG.lineStyle(1.5, 0xFF4444, 0.7); rvG.strokeRoundedRect(W * 0.22 - 56, FY + 64, 112, 26, 7);
+    slide(rvG, 0);
+
+    slide(track(this.add.text(W * 0.22, FY + 77, '💀  REVENGE!', {
+      fontSize: '11px', fontFamily: 'Arial Black', color: '#FFFFFF',
+      stroke: '#000', strokeThickness: 2,
+    }).setOrigin(0.5).setDepth(D + 2)), 0);
+
+    // Dismiss ✕
+    slide(track(this.add.text(W - 26, FY + 18, '✕', {
+      fontSize: '18px', fontFamily: 'Arial Black', color: '#554455',
+    }).setOrigin(0.5).setDepth(D + 2)), 0);
+
+    const dismiss = () => {
+      this.tweens.add({
+        targets: this._rivalBannerOverlay, alpha: 0, duration: 220,
+        onComplete: () => { this._rivalBannerOverlay.forEach(o => o.destroy()); this._rivalBannerOverlay = []; },
+      });
+    };
+
+    slide(track(this.add.rectangle(W * 0.22, FY + 77, 112, 26, 0, 0)
+      .setInteractive({ useHandCursor: true }).setDepth(D + 3)
+      .on('pointerdown', () => {
+        this._pendingRevenge = attackInfo.rivalName;
+        dismiss();
+      })), 0);
+
+    slide(track(this.add.rectangle(W - 26, FY + 18, 36, 36, 0, 0)
+      .setInteractive({ useHandCursor: true }).setDepth(D + 3)
+      .on('pointerdown', dismiss)), 0);
+
+    this.time.delayedCall(6000, dismiss);
+  }
+
+  // ─── ATTACK TARGET PANEL ───────────────────────────────────────────────────
+
+  _showAttackTargetPanel() {
+    const W  = this.scale.width;
+    const H  = this.scale.height;
+    const D  = 25;
+
+    this._attackTargetOverlay.forEach(o => o.destroy());
+    this._attackTargetOverlay = [];
+    const track = obj => { this._attackTargetOverlay.push(obj); return obj; };
+    const close = () => { this._attackTargetOverlay.forEach(o => o.destroy()); this._attackTargetOverlay = []; };
+
+    // Dim backdrop
+    track(this.add.rectangle(W / 2, H / 2, W, H, 0x000000, 0.78).setDepth(D));
+
+    // Panel
+    const panelG = track(this.add.graphics().setDepth(D));
+    const pY = H * 0.37;
+    const pH = H * 0.44;
+    panelG.fillStyle(0x05051E, 0.97);
+    panelG.fillRoundedRect(12, pY, W - 24, pH, 16);
+    panelG.lineStyle(2, 0xFF4444, 0.50);
+    panelG.strokeRoundedRect(12, pY, W - 24, pH, 16);
+
+    track(this.add.text(W / 2, pY + 26, '⚔️  Choose Your Target', {
+      fontSize: '18px', fontFamily: 'Arial Black',
+      color: '#FF6644', stroke: '#000000', strokeThickness: 4,
+    }).setOrigin(0.5).setDepth(D + 1));
+
+    // 3 target cards
+    const targets = this.rivalSystem.getTargets(this._raidTarget);
+    const cardW   = 124;
+    const cardH   = 148;
+    const cardY   = pY + 46;
+    const xs      = [W * 0.185, W * 0.50, W * 0.815];
+
+    targets.forEach((tgt, i) => {
+      const cx   = xs[i];
+      const cg   = track(this.add.graphics().setDepth(D + 1));
+
+      // Card bg
+      cg.fillStyle(tgt.revenge ? 0x180000 : 0x080820, 0.92);
+      cg.fillRoundedRect(cx - cardW / 2, cardY, cardW, cardH, 9);
+      if (tgt.revenge) {
+        cg.fillStyle(0xFF2200, 0.09);
+        cg.fillRoundedRect(cx - cardW / 2, cardY, cardW, 36, 9);
+      }
+      cg.lineStyle(2, tgt.revenge ? 0xFF3300 : 0x334466, 0.75);
+      cg.strokeRoundedRect(cx - cardW / 2, cardY, cardW, cardH, 9);
+
+      // Name
+      track(this.add.text(cx, cardY + 17, tgt.name, {
+        fontSize: '11px', fontFamily: 'Arial Black',
+        color: tgt.revenge ? '#FF6644' : '#DDEEFF',
+        stroke: '#000', strokeThickness: 2,
+      }).setOrigin(0.5).setDepth(D + 2));
+
+      // Kingdom level
+      const kLvl = (tgt.buildings || []).reduce((s, v) => s + v, 0);
+      track(this.add.text(cx, cardY + 36, `🏰 Lv.${kLvl}`, {
+        fontSize: '11px', fontFamily: 'Arial', color: '#1ABC9C',
+      }).setOrigin(0.5).setDepth(D + 2));
+
+      // Loot estimate (×1.5 on revenge)
+      const loot = tgt.revenge ? Math.round(tgt.loot * 1.5) : tgt.loot;
+      track(this.add.text(cx, cardY + 58, `💰 ~${loot.toLocaleString()}`, {
+        fontSize: '12px', fontFamily: 'Arial Black', color: '#FFD700',
+        stroke: '#000', strokeThickness: 2,
+      }).setOrigin(0.5).setDepth(D + 2));
+
+      // Attack / Revenge button
+      const btnY   = cardY + cardH - 40;
+      const btnCol = tgt.revenge ? 0xCC1100 : 0xC0390B;
+      const btnLit = tgt.revenge ? 0xFF3300 : 0xE67E22;
+      const btnG   = track(this.add.graphics().setDepth(D + 2));
+      btnG.fillStyle(btnCol, 1); btnG.fillRoundedRect(cx - 50, btnY, 100, 32, 8);
+      btnG.fillStyle(btnLit, 1); btnG.fillRoundedRect(cx - 50, btnY, 100, 22, 8);
+      btnG.lineStyle(1.5, tgt.revenge ? 0xFF6644 : 0xFFD700, 0.8);
+      btnG.strokeRoundedRect(cx - 50, btnY, 100, 32, 8);
+
+      track(this.add.text(cx, btnY + 16, tgt.revenge ? '💀 REVENGE!' : 'ATTACK!', {
+        fontSize: '11px', fontFamily: 'Arial Black',
+        color: '#FFFFFF', stroke: '#000', strokeThickness: 2,
+      }).setOrigin(0.5).setDepth(D + 3));
+
+      // Hit area (whole card)
+      const hit = track(this.add.rectangle(cx, cardY + cardH / 2, cardW, cardH, 0, 0)
+        .setInteractive({ useHandCursor: true }).setDepth(D + 4));
+      hit.on('pointerover', () => cg.setAlpha(0.65));
+      hit.on('pointerout',  () => cg.setAlpha(1));
+      hit.on('pointerdown', () => {
+        close();
+        if (tgt.revenge && tgt.rivalRef) this.rivalSystem.clearRevenge(tgt.rivalRef.name);
+        if (tgt.isRival && tgt.rivalRef)  this.rivalSystem.onAttacked(tgt.rivalRef.name);
+        this.scene.sleep('GameScene');
+        this.scene.launch('AttackScene', {
+          target:   { name: tgt.name, buildings: tgt.buildings, _id: tgt._id || null },
+          deviceId: GameState.deviceId,
+        });
+      });
+    });
+
+    // Skip button
+    const skipY = pY + pH - 30;
+    const skipG = track(this.add.graphics().setDepth(D + 1));
+    skipG.fillStyle(0x1A1A2E, 1); skipG.fillRoundedRect(W / 2 - 72, skipY - 18, 144, 36, 9);
+    skipG.lineStyle(1, 0x334466, 0.6); skipG.strokeRoundedRect(W / 2 - 72, skipY - 18, 144, 36, 9);
+
+    track(this.add.text(W / 2, skipY, 'Skip', {
+      fontSize: '16px', fontFamily: 'Arial', color: '#667788',
+    }).setOrigin(0.5).setDepth(D + 2));
+
+    track(this.add.rectangle(W / 2, skipY, 144, 36, 0, 0)
+      .setInteractive({ useHandCursor: true }).setDepth(D + 3)
+      .on('pointerdown', close));
   }
 
   // ─── HUD UPDATE ────────────────────────────────────────────────────────────

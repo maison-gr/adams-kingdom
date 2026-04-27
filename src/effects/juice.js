@@ -122,3 +122,92 @@ export function shieldBubble(scene, x, y) {
     onComplete: () => inner.destroy(),
   });
 }
+
+// ── Sprint 1: Short-Loop Feel ─────────────────────────────────────────────────
+
+export function nearMissFlash(scene, W, H) {
+  // "SO CLOSE!" pop text
+  const txt = scene.add.text(W / 2, H * 0.47, '😱  SO CLOSE!', {
+    fontSize: '40px', fontFamily: 'Arial Black',
+    color: '#FF6600', stroke: '#000000', strokeThickness: 6,
+  }).setOrigin(0.5).setDepth(50).setScale(0.1);
+
+  scene.tweens.add({
+    targets: txt,
+    scaleX: 1, scaleY: 1,
+    duration: 220, ease: 'Back.easeOut',
+  });
+  scene.tweens.add({
+    targets: txt,
+    alpha: 0, y: H * 0.47 - 70,
+    duration: 600, delay: 1000, ease: 'Power2',
+    onComplete: () => txt.destroy(),
+  });
+
+  // 3 rapid screen pulses
+  for (let i = 0; i < 3; i++) {
+    const flash = scene.add.rectangle(W / 2, H / 2, W, H, 0xFF4400, 0.22)
+      .setDepth(49);
+    scene.tweens.add({
+      targets: flash, alpha: 0, duration: 230,
+      delay: i * 190,
+      onComplete: () => flash.destroy(),
+    });
+  }
+
+  scene.cameras.main.shake(340, 0.009);
+}
+
+export function feverActivate(scene, W, H) {
+  // Gold screen wash
+  const wash = scene.add.rectangle(W / 2, H / 2, W, H, 0xFFAA00, 0.38)
+    .setDepth(48);
+  scene.tweens.add({
+    targets: wash, alpha: 0, duration: 750,
+    onComplete: () => wash.destroy(),
+  });
+
+  // "FEVER MODE!" punch text
+  const txt = scene.add.text(W / 2, H * 0.44, '🔥 FEVER MODE! 🔥', {
+    fontSize: '44px', fontFamily: 'Arial Black',
+    color: '#FFD700', stroke: '#7A2D00', strokeThickness: 7,
+  }).setOrigin(0.5).setDepth(51).setScale(0.1);
+
+  scene.tweens.add({
+    targets: txt, scaleX: 1.15, scaleY: 1.15,
+    duration: 260, ease: 'Back.easeOut',
+    onComplete: () => {
+      scene.tweens.add({
+        targets: txt, alpha: 0, y: txt.y - 55,
+        duration: 450, delay: 700, ease: 'Power2',
+        onComplete: () => txt.destroy(),
+      });
+    },
+  });
+
+  scene.cameras.main.shake(440, 0.015);
+
+  const cx = W / 2;
+  const cy = H * 0.57;
+  burstParticles(scene, cx, cy, [0xFFD700, 0xFF6600, 0xFF2200, 0xFFFFFF], 36);
+}
+
+export function feverEnd(scene, W, H) {
+  const txt = scene.add.text(W / 2, H * 0.44, 'FEVER OVER', {
+    fontSize: '28px', fontFamily: 'Arial Black',
+    color: '#888888', stroke: '#000000', strokeThickness: 4,
+  }).setOrigin(0.5).setDepth(50);
+  scene.tweens.add({
+    targets: txt, alpha: 0, y: txt.y - 50,
+    duration: 900, delay: 180, ease: 'Power2',
+    onComplete: () => txt.destroy(),
+  });
+}
+
+export function streakBurst(scene, x, y, streak) {
+  const count  = Math.min(streak * 3, 20);
+  const colors = streak >= 5
+    ? [0xFFD700, 0xFF6600, 0xFF2200, 0xFFFFFF]
+    : [0xFF8C00, 0xFFCC44, 0xFFFFFF];
+  burstParticles(scene, x, y, colors, count);
+}
