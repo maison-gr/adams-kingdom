@@ -132,7 +132,7 @@ npm run build            # output → dist/
 
 ## 📱 Mobile (iOS & Android)
 
-Packaged as a **real native app** via Capacitor — no browser bar, no webview chrome.
+Packaged as a **real native app** via Capacitor — no browser bar, no WebView chrome.
 
 ```bash
 npm run build
@@ -192,10 +192,10 @@ adams-kingdom/
 ## 🗺️ Roadmap
 
 ```
-Phase 1 — Core loop ████████████████████ 100%
-Phase 2 — Social     ███████████░░░░░░░░░  55%
-Phase 3 — Monetise   ░░░░░░░░░░░░░░░░░░░░   0%
-Phase 4 — Ship       ░░░░░░░░░░░░░░░░░░░░   0%
+Phase 1 — Core loop  ████████████████████ 100%  ✅
+Phase 2 — Social     ██████████░░░░░░░░░░  50%  🔨
+Phase 3 — Monetize   ░░░░░░░░░░░░░░░░░░░░   0%  📋
+Phase 4 — Ship       ░░░░░░░░░░░░░░░░░░░░   0%  📋
 ```
 
 **Phase 1 — Core loop** ✅
