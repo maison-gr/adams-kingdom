@@ -5,7 +5,9 @@
   "main": "index.js",
   "scripts": {
     "dev": "vite",
-    "build": "vite build"
+    "build": "vite build",
+    "android": "npx cap open android",
+    "android:sync": "npx cap sync android"
   },
   "keywords": [],
   "author": "",
