@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
-import { BootScene } from './scenes/BootScene.js';
-import { GameScene } from './scenes/GameScene.js';
+import { BootScene }   from './scenes/BootScene.js';
+import { GameScene }   from './scenes/GameScene.js';
+import { AttackScene } from './scenes/AttackScene.js';
 
 const config = {
   type: Phaser.AUTO,
@@ -8,7 +9,7 @@ const config = {
   height: 854,
   backgroundColor: '#0a0a2e',
   parent: 'game',
-  scene: [BootScene, GameScene],
+  scene: [BootScene, GameScene, AttackScene],
   scale: {
     mode: Phaser.Scale.FIT,
     autoCenter: Phaser.Scale.CENTER_BOTH,

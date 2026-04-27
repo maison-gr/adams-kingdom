@@ -4,7 +4,8 @@ import {
   screenShake, upgradeEffect, shieldBubble,
 } from '../effects/juice.js';
 import { syncPlayer, getRaidTarget, recordAttack } from '../api/client.js';
-import { SpinSystem } from '../systems/SpinSystem.js';
+import { SpinSystem }   from '../systems/SpinSystem.js';
+import { RewardSystem } from '../systems/RewardSystem.js';
 
 // ─── DATA ────────────────────────────────────────────────────────────────────
 
@@ -29,6 +30,7 @@ export class GameScene extends Phaser.Scene {
   constructor() {
     super('GameScene');
     this.spinSystem    = new SpinSystem(SEGMENTS);
+    this.rewardSystem  = new RewardSystem(this);
     this.wheelAngle    = 0;
     this.attackOverlay = [];
     this.attackBldgs   = [];
@@ -564,47 +566,8 @@ export class GameScene extends Phaser.Scene {
   }
 
   applyOutcome(segment) {
-    this.isSpinning = false;
     this.spinBtnText.setText('SPIN');
-
-    const W = this.scale.width;
-    const H = this.scale.height;
-
-    if (segment.type === 'coins') {
-      GameState.addCoins(segment.value);
-
-      if (segment.value >= 5000) {
-        // JACKPOT
-        this.showResult('JACKPOT!  +5,000!', '#FFD700');
-        screenShake(this, 0.016, 500);
-        goldRain(this, W, H);
-        burstParticles(this, this.wheelCx, this.wheelCy, [0xFFD700, 0xFF4444, 0xFFFFFF, 0xFF8C00], 32);
-        flyingCoins(this, this.wheelCx, this.wheelCy, this.coinIconX, this.coinIconY, 14);
-      } else {
-        this.showResult(`+${segment.value.toLocaleString()} Coins!`, '#FFD700');
-        flyingCoins(this, this.wheelCx, this.wheelCy - this.wheelR * 0.5, this.coinIconX, this.coinIconY, 6);
-      }
-
-    } else if (segment.type === 'attack') {
-      GameState.addAttack();
-      this.showResult('ATTACK!', '#FF4444');
-      // Red flash
-      const flash = this.add.rectangle(W / 2, H / 2, W, H, 0xFF0000, 0.22).setDepth(40);
-      this.tweens.add({ targets: flash, alpha: 0, duration: 380, onComplete: () => flash.destroy() });
-      this.time.delayedCall(1000, () => this.showAttackOverlay());
-
-    } else if (segment.type === 'shield') {
-      GameState.addShield();
-      this.showResult('SHIELD!', '#5DADE2');
-      shieldBubble(this, W / 2, H * 0.22);
-
-    } else if (segment.type === 'spin') {
-      GameState.addSpins(segment.value);
-      this.showResult('EXTRA SPIN!', '#2ECC71');
-      burstParticles(this, this.wheelCx, this.wheelCy, [0x2ECC71, 0xFFFFFF, 0x00FF88], 10);
-    }
-
-    this.updateHUD();
+    this.rewardSystem.handle(segment);
   }
 
   showResult(msg, color) {
@@ -657,7 +620,7 @@ export class GameScene extends Phaser.Scene {
     upgradeEffect(this, x, groundY - 30, BUILDING_COLORS[index]);
   }
 
-  // ─── ATTACK OVERLAY ────────────────────────────────────────────────────────
+  // ─── ATTACK OVERLAY (kept as fallback; replaced by AttackScene in Step 3) ──
 
   showAttackOverlay() {
     const W = this.scale.width;
