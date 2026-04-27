@@ -1,7 +1,27 @@
 const REFILL_INTERVAL = 5 * 60 * 1000; // 1 spin every 5 minutes
 const MAX_SPINS = 50;
 
+const NAMES = ['Swift Knight','Bold Baron','Royal Duke','Dark Queen','Storm King',
+               'Iron Lord','Golden Mage','Silver Fox','Shadow Prince','Brave Heart'];
+
+function initDeviceId() {
+  let id = localStorage.getItem('deviceId');
+  if (!id) { id = crypto.randomUUID(); localStorage.setItem('deviceId', id); }
+  return id;
+}
+
+function initPlayerName() {
+  let name = localStorage.getItem('playerName');
+  if (!name) {
+    name = NAMES[Math.floor(Math.random() * NAMES.length)];
+    localStorage.setItem('playerName', name);
+  }
+  return name;
+}
+
 export const GameState = {
+  deviceId:   initDeviceId(),
+  playerName: initPlayerName(),
   coins:    parseInt(localStorage.getItem('coins')    || '500'),
   spins:    parseInt(localStorage.getItem('spins')    || '10'),
   shields:  parseInt(localStorage.getItem('shields')  || '0'),

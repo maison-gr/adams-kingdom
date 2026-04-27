@@ -3,6 +3,7 @@ import {
   flyingCoins, burstParticles, goldRain,
   screenShake, upgradeEffect, shieldBubble,
 } from '../effects/juice.js';
+import { syncPlayer, getRaidTarget, recordAttack } from '../api/client.js';
 
 // ─── DATA ────────────────────────────────────────────────────────────────────
 
@@ -40,6 +41,10 @@ export class GameScene extends Phaser.Scene {
     const H = this.scale.height;
 
     GameState.checkRefill();
+    this._raidTarget = null;
+    syncPlayer(GameState);
+    // Re-sync every 60 s
+    this.time.addEvent({ delay: 60000, loop: true, callback: () => syncPlayer(GameState) });
 
     this.drawBackground(W, H);
     this.drawKingdom(W, H);
@@ -570,8 +575,12 @@ export class GameScene extends Phaser.Scene {
 
   _onWheelStopped(targetIndex) {
     const seg = SEGMENTS[targetIndex];
-    // Burst particles at the pointer tip (top of wheel)
     burstParticles(this, this.wheelCx, this.wheelCy - this.wheelR, [seg.color, seg.light, 0xFFFFFF], 14);
+
+    // Pre-fetch raid target while the win animation plays
+    if (seg.type === 'attack') {
+      getRaidTarget(GameState.deviceId).then(t => { this._raidTarget = t; });
+    }
 
     this.time.delayedCall(180, () => {
       this.applyOutcome(seg);
@@ -682,9 +691,12 @@ export class GameScene extends Phaser.Scene {
     const D = 20;
     const add = obj => { obj.setDepth(D); this.attackOverlay.push(obj); return obj; };
 
-    const victimNames = ['King Leo', 'Queen Maya', 'Baron Fritz', 'Lady Zara', 'Duke Rex', 'Prince Sam'];
-    const victimName  = Phaser.Utils.Array.GetRandom(victimNames);
-    const victimBldgs = Array.from({ length: 6 }, () => Phaser.Math.Between(0, 3));
+    // Use real player if available, else fall back to fake
+    const FALLBACK_NAMES = ['King Leo', 'Queen Maya', 'Baron Fritz', 'Lady Zara', 'Duke Rex'];
+    const real = this._raidTarget;
+    const victimName  = real?.name  || Phaser.Utils.Array.GetRandom(FALLBACK_NAMES);
+    const victimBldgs = real?.buildings || Array.from({ length: 6 }, () => Phaser.Math.Between(0, 3));
+    const victimId    = real?._id || null;
 
     add(this.add.rectangle(W / 2, H / 2, W, H, 0x000000, 0.88));
     add(this.add.text(W / 2, H * 0.09, 'ATTACK!', {
@@ -715,7 +727,7 @@ export class GameScene extends Phaser.Scene {
         .setDepth(D + 1).setInteractive({ useHandCursor: true });
       hit.on('pointerover', () => hit.setFillStyle(0xFFFFFF, 0.14));
       hit.on('pointerout',  () => hit.setFillStyle(0xFFFFFF, 0));
-      hit.on('pointerdown', () => this.onAttackBuilding(i, x, groundY, level));
+      hit.on('pointerdown', () => this.onAttackBuilding(i, x, groundY, level, victimId));
       this.attackOverlay.push(hit);
       this.attackBldgs.push({ hit });
     }
@@ -737,7 +749,7 @@ export class GameScene extends Phaser.Scene {
     this.attackOverlay.push(skipHit);
   }
 
-  onAttackBuilding(index, x, groundY, level) {
+  onAttackBuilding(index, x, groundY, level, victimId = null) {
     this.attackBldgs.forEach(b => b.hit.disableInteractive());
     const D = 22;
     const W = this.scale.width;
@@ -769,6 +781,8 @@ export class GameScene extends Phaser.Scene {
       : level * Phaser.Math.Between(250, 420);
     GameState.addCoins(stolen);
     this.updateHUD();
+
+    if (victimId) recordAttack(victimId, index, stolen);
 
     const stealText = this.add.text(W / 2, groundY - 95,
       `+${stolen.toLocaleString()} coins stolen!`, {
