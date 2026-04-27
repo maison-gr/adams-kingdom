@@ -36,6 +36,7 @@ export class RewardSystem {
     const mult   = this._combo?.multiplier ?? 1;
     const amount = Math.round(segment.value * mult);
     GameState.addCoins(amount);
+    this._grantXP('coins', mult);
     if (amount >= 5000) {
       this._jackpot(amount);
     } else {
@@ -61,11 +62,13 @@ export class RewardSystem {
     const mult   = this._combo?.multiplier ?? 1;
     const amount = Math.round(segment.value * mult);
     GameState.addCoins(amount);
+    this._grantXP('jackpot', mult);
     this._jackpot(amount);
   }
 
   _on_attack(_segment) {
     GameState.addAttack();
+    this._grantXP('attack');
     this.scene.missionSystem?.progress('attacks');
     this.scene._refreshMissionBadge?.();
     this._toast('ATTACK!', '#FF4444');
@@ -76,6 +79,7 @@ export class RewardSystem {
   }
 
   _on_chest(_segment) {
+    this._grantXP('chest');
     this.scene.missionSystem?.progress('chests');
     this.scene._refreshMissionBadge?.();
     const type  = randomChestType();
@@ -93,6 +97,7 @@ export class RewardSystem {
   }
 
   _on_raid(_segment) {
+    this._grantXP('raid');
     this.scene.missionSystem?.progress('raids');
     this.scene._refreshMissionBadge?.();
     this._toast('RAID!', '#1ABC9C');
@@ -109,6 +114,7 @@ export class RewardSystem {
 
   _on_shield(_segment) {
     GameState.addShield();
+    this._grantXP('shield');
     this._toast('SHIELD!', '#5DADE2');
     const { width: W, height: H } = this.scene.scale;
     shieldBubble(this.scene, W / 2, H * 0.22);
@@ -116,6 +122,7 @@ export class RewardSystem {
 
   _on_spin(segment) {
     GameState.addSpins(segment.value);
+    this._grantXP('spin');
     this._toast('EXTRA SPIN!', '#2ECC71');
     burstParticles(
       this.scene, this.scene.wheelCx, this.scene.wheelCy,
@@ -124,6 +131,14 @@ export class RewardSystem {
   }
 
   // ── Private helpers ────────────────────────────────────────────────────────
+
+  _grantXP(action, mult = 1) {
+    const rs = this.scene.rankSystem;
+    if (!rs) return;
+    const result = rs.award(action, mult);
+    this.scene.updateXPBar?.();
+    if (result?.rankUp) this.scene._showRankUpOverlay?.(result.def);
+  }
 
   _jackpot(amount = 5000) {
     const { width: W, height: H } = this.scene.scale;

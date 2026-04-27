@@ -1,5 +1,7 @@
-const REFILL_INTERVAL = 5 * 60 * 1000; // 1 spin every 5 minutes
-const MAX_SPINS = 50;
+const REFILL_INTERVAL  = 5 * 60 * 1000; // 1 spin every 5 minutes
+const MAX_SPINS        = 50;
+const PASSIVE_CAP_MS   = 4 * 60 * 60 * 1000; // cap passive earn at 4 hours
+const PASSIVE_PER_LVL  = [0, 5, 15, 40];     // coins per minute per building level
 
 const NAMES = ['Swift Knight','Bold Baron','Royal Duke','Dark Queen','Storm King',
                'Iron Lord','Golden Mage','Silver Fox','Shadow Prince','Brave Heart'];
@@ -28,7 +30,8 @@ export const GameState = {
   attacks:  parseInt(localStorage.getItem('attacks')  || '0'),
   buildings: JSON.parse(localStorage.getItem('buildings') || '[0,0,0,0,0,0]'),
   chests:    JSON.parse(localStorage.getItem('chests')    || '[]'),
-  refillAt: parseInt(localStorage.getItem('refillAt') || '0'),
+  refillAt:       parseInt(localStorage.getItem('refillAt')       || '0'),
+  passiveCoinsAt: parseInt(localStorage.getItem('passiveCoinsAt') || '0'),
 
   save() {
     localStorage.setItem('coins',    this.coins);
@@ -37,7 +40,8 @@ export const GameState = {
     localStorage.setItem('attacks',  this.attacks);
     localStorage.setItem('buildings', JSON.stringify(this.buildings));
     localStorage.setItem('chests',    JSON.stringify(this.chests));
-    localStorage.setItem('refillAt', this.refillAt);
+    localStorage.setItem('refillAt',       this.refillAt);
+    localStorage.setItem('passiveCoinsAt', this.passiveCoinsAt);
   },
 
   addChest(type) {
@@ -75,6 +79,27 @@ export const GameState = {
   msUntilNextSpin() {
     if (this.spins >= MAX_SPINS) return 0;
     return Math.max(0, this.refillAt - Date.now());
+  },
+
+  checkPassiveIncome() {
+    const now = Date.now();
+    if (!this.passiveCoinsAt) {
+      this.passiveCoinsAt = now;
+      this.save();
+      return 0;
+    }
+    const elapsed = Math.min(now - this.passiveCoinsAt, PASSIVE_CAP_MS);
+    const minutes = elapsed / 60000;
+    const rate    = this.buildings.reduce((s, lvl) => s + (PASSIVE_PER_LVL[lvl] ?? 0), 0);
+    const earned  = Math.floor(rate * minutes);
+    this.passiveCoinsAt = now;
+    if (earned > 0) this.addCoins(earned); else this.save();
+    return earned;
+  },
+
+  passiveRatePerHour() {
+    const rate = this.buildings.reduce((s, lvl) => s + (PASSIVE_PER_LVL[lvl] ?? 0), 0);
+    return Math.round(rate * 60);
   },
 
   addCoins(amount) { this.coins += amount; this.save(); },

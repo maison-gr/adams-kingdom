@@ -10,6 +10,7 @@ import { RewardSystem }  from '../systems/RewardSystem.js';
 import { ComboSystem }    from '../systems/ComboSystem.js';
 import { MissionSystem } from '../systems/MissionSystem.js';
 import { RivalSystem }   from '../systems/RivalSystem.js';
+import { RankSystem }    from '../systems/RankSystem.js';
 import { drawBuilding, BUILDING_COLORS } from '../utils/buildingRenderer.js';
 
 // ─── DATA ────────────────────────────────────────────────────────────────────
@@ -48,6 +49,7 @@ export class GameScene extends Phaser.Scene {
     this._outcomePending       = false;
     this._attackTargetOverlay  = [];
     this._rivalBannerOverlay   = [];
+    this.rankSystem            = new RankSystem();
   }
 
   // ─── LIFECYCLE ─────────────────────────────────────────────────────────────
@@ -57,6 +59,7 @@ export class GameScene extends Phaser.Scene {
     const H = this.scale.height;
 
     GameState.checkRefill();
+    const offlineEarned = GameState.checkPassiveIncome();
     this._raidTarget  = null;
     syncPlayer(GameState);
     this.events.on('wake', () => {
@@ -64,10 +67,14 @@ export class GameScene extends Phaser.Scene {
       this._refreshMissionBadge();
     });
 
+    if (offlineEarned > 0) {
+      this.time.delayedCall(500, () => this._showOfflineEarnings(offlineEarned));
+    }
+
     // Check if a rival attacked while the player was away
     const rivalAttack = this.rivalSystem.checkOfflineAttack();
     if (rivalAttack) {
-      this.time.delayedCall(1200, () => this._showRivalAttackBanner(rivalAttack));
+      this.time.delayedCall(offlineEarned > 0 ? 2000 : 1200, () => this._showRivalAttackBanner(rivalAttack));
     }
     // Re-sync every 60 s
     this.time.addEvent({ delay: 60000, loop: true, callback: () => syncPlayer(GameState) });
@@ -398,11 +405,11 @@ export class GameScene extends Phaser.Scene {
 
     // Outer glow ring
     panel.fillStyle(0xFFD700, 0.04);
-    panel.fillRoundedRect(4, 4, W - 8, 82, 17);
+    panel.fillRoundedRect(4, 4, W - 8, 100, 17);
 
     // Main glass panel
     panel.fillStyle(0x05051E, 0.82);
-    panel.fillRoundedRect(8, 8, W - 16, 74, 14);
+    panel.fillRoundedRect(8, 8, W - 16, 92, 14);
 
     // Glass sheen (top half lighter)
     panel.fillStyle(0xFFFFFF, 0.05);
@@ -410,9 +417,9 @@ export class GameScene extends Phaser.Scene {
 
     // Gold border + inner silver line
     panel.lineStyle(2, 0xFFD700, 0.60);
-    panel.strokeRoundedRect(8, 8, W - 16, 74, 14);
+    panel.strokeRoundedRect(8, 8, W - 16, 92, 14);
     panel.lineStyle(1, 0xFFFFFF, 0.07);
-    panel.strokeRoundedRect(11, 11, W - 22, 68, 12);
+    panel.strokeRoundedRect(11, 11, W - 22, 86, 12);
 
     // ── Three stat capsules ───────────────────────────────────────────────────
     const items = [
@@ -442,6 +449,32 @@ export class GameScene extends Phaser.Scene {
         color: `#${color.toString(16).padStart(6, '0')}`, alpha: 0.70,
       }).setOrigin(0.5);
     });
+
+    // ── Rank / XP progress bar ────────────────────────────────────────────────
+    const rankDef0 = this.rankSystem.currentDef;
+    const rCol0    = rankDef0.color;
+    const rColHex0 = `#${rCol0.toString(16).padStart(6, '0')}`;
+
+    panel.fillStyle(rCol0, 0.90);
+    panel.fillCircle(16, 89, 4.5);
+    panel.fillStyle(0xFFFFFF, 0.35);
+    panel.fillCircle(15, 88, 2.5);
+    panel.fillStyle(0x020210, 1);
+    panel.fillRoundedRect(90, 84, W - 180, 10, 4);
+
+    this._xpBarFill = this.add.graphics().setDepth(2);
+
+    this._rankTitleText = this.add.text(24, 89, rankDef0.title, {
+      fontSize: '9px', fontFamily: 'Arial Black', color: rColHex0,
+    }).setOrigin(0, 0.5).setDepth(2);
+
+    const xpInfo0 = this.rankSystem.isMaxRank ? 'MAX'
+      : `${this.rankSystem.xpIntoRank}/${this.rankSystem.xpForNextRank}`;
+    this._xpProgressText = this.add.text(W - 10, 89, xpInfo0, {
+      fontSize: '9px', fontFamily: 'Arial Black', color: '#556677',
+    }).setOrigin(1, 0.5).setDepth(2);
+
+    this.updateXPBar();
 
     this.coinIconX = W * 0.25;
     this.coinIconY = 45;
@@ -511,12 +544,12 @@ export class GameScene extends Phaser.Scene {
 
     // Chest inventory badge — appears below HUD when chests are waiting
     this._chestBadgeBg = this.add.graphics().setDepth(1);
-    this.chestBadgeText = this.add.text(W / 2, 96, '', {
+    this.chestBadgeText = this.add.text(W / 2, 114, '', {
       fontSize: '11px', fontFamily: 'Arial Black',
       color: '#1ABC9C', stroke: '#000', strokeThickness: 2,
     }).setOrigin(0.5).setDepth(2);
 
-    const badgeHit = this.add.zone(W / 2, 96, 200, 22).setDepth(3).setInteractive({ useHandCursor: true });
+    const badgeHit = this.add.zone(W / 2, 114, 200, 22).setDepth(3).setInteractive({ useHandCursor: true });
     badgeHit.on('pointerdown', () => {
       if (GameState.chests.length === 0) return;
       const chest = GameState.chests[0];
@@ -533,10 +566,34 @@ export class GameScene extends Phaser.Scene {
     if (n === 0) { this.chestBadgeText.setText(''); return; }
 
     this._chestBadgeBg.fillStyle(0x1ABC9C, 0.18);
-    this._chestBadgeBg.fillRoundedRect(W / 2 - 90, 85, 180, 22, 11);
+    this._chestBadgeBg.fillRoundedRect(W / 2 - 90, 103, 180, 22, 11);
     this._chestBadgeBg.lineStyle(1.5, 0x1ABC9C, 0.6);
-    this._chestBadgeBg.strokeRoundedRect(W / 2 - 90, 85, 180, 22, 11);
+    this._chestBadgeBg.strokeRoundedRect(W / 2 - 90, 103, 180, 22, 11);
     this.chestBadgeText.setText(`🎁  ${n} chest${n > 1 ? 's' : ''} — tap to open!`);
+  }
+
+  updateXPBar() {
+    if (!this._xpBarFill) return;
+    const W       = this.scale.width;
+    const rs      = this.rankSystem;
+    const def     = rs.currentDef;
+    const rCol    = def.color;
+    const rColHex = `#${rCol.toString(16).padStart(6, '0')}`;
+    const barW    = W - 180;
+    const pct     = rs.progressPct;
+
+    this._xpBarFill.clear();
+    const fillW = rs.isMaxRank ? barW : (pct > 0 ? Math.max(barW * pct, 6) : 0);
+    if (fillW > 0) {
+      this._xpBarFill.fillStyle(rCol, 0.85);
+      this._xpBarFill.fillRoundedRect(90, 84, fillW, 10, 4);
+      this._xpBarFill.fillStyle(0xFFFFFF, 0.20);
+      this._xpBarFill.fillRoundedRect(90, 84, fillW, 4, 3);
+    }
+
+    this._rankTitleText?.setText(def.title).setColor(rColHex);
+    const xpInfo = rs.isMaxRank ? 'MAX' : `${rs.xpIntoRank}/${rs.xpForNextRank}`;
+    this._xpProgressText?.setText(xpInfo);
   }
 
   // ─── SPIN BUTTON ───────────────────────────────────────────────────────────
@@ -756,6 +813,7 @@ export class GameScene extends Phaser.Scene {
     const cy = this.wheelCy;
 
     if (result.feverTriggered) {
+      this._rankAward('feverTrigger');
       feverActivate(this, W, H);
       this.tweens.killTweensOf(this.feverRing);
       this.feverRing.setAlpha(1);
@@ -785,6 +843,7 @@ export class GameScene extends Phaser.Scene {
     } else if (result.streak && result.streak >= 2) {
       streakBurst(this, cx, cy, result.streak);
       if (result.streak >= 3) {
+        this._rankAward('combo3');
         this.missionSystem.progress('combo', result.streak);
         this._refreshMissionBadge();
       }
@@ -863,6 +922,7 @@ export class GameScene extends Phaser.Scene {
     this.refreshKingdom();
     this.showResult(`${BUILDING_NAMES[index]} upgraded!`, '#2ECC71');
     this.updateHUD();
+    this._rankAward('upgrade');
     this.missionSystem.progress('upgrades');
     this._refreshMissionBadge();
 
@@ -1193,6 +1253,145 @@ export class GameScene extends Phaser.Scene {
       .on('pointerdown', close));
   }
 
+  // ─── OFFLINE EARNINGS SCREEN ──────────────────────────────────────────────
+
+  _showOfflineEarnings(earned) {
+    const W = this.scale.width;
+    const H = this.scale.height;
+    const D = 40;
+    const overlay = [];
+    const track   = o => { overlay.push(o); return o; };
+    const close   = () => overlay.forEach(o => o.destroy());
+
+    track(this.add.rectangle(W / 2, H / 2, W, H, 0x000000, 0.82).setDepth(D));
+
+    const cY = H * 0.33;
+    const cH = 218;
+    const bg = track(this.add.graphics().setDepth(D));
+    bg.fillStyle(0x05051E, 0.97);
+    bg.fillRoundedRect(24, cY, W - 48, cH, 16);
+    bg.lineStyle(2, 0xFFD700, 0.60);
+    bg.strokeRoundedRect(24, cY, W - 48, cH, 16);
+    bg.fillStyle(0xFFFFFF, 0.04);
+    bg.fillRoundedRect(24, cY, W - 48, 42, 16);
+
+    track(this.add.text(W / 2, cY + 26, 'Welcome Back! 🏰', {
+      fontSize: '20px', fontFamily: 'Arial Black',
+      color: '#FFD700', stroke: '#000000', strokeThickness: 4,
+    }).setOrigin(0.5).setDepth(D + 1));
+
+    track(this.add.text(W / 2, cY + 68, 'Your kingdom produced coins\nwhile you were away:', {
+      fontSize: '12px', fontFamily: 'Arial', color: '#AABBCC',
+      align: 'center', wordWrap: { width: W - 80 },
+    }).setOrigin(0.5).setDepth(D + 1));
+
+    track(this.add.text(W / 2, cY + 118, `+${earned.toLocaleString()}`, {
+      fontSize: '40px', fontFamily: 'Arial Black',
+      color: '#FFD700', stroke: '#000000', strokeThickness: 5,
+    }).setOrigin(0.5).setDepth(D + 1));
+
+    track(this.add.text(W / 2, cY + 152, '💰 coins', {
+      fontSize: '15px', fontFamily: 'Arial Black',
+      color: '#FFD700', stroke: '#000000', strokeThickness: 2,
+    }).setOrigin(0.5).setDepth(D + 1));
+
+    const rate = GameState.passiveRatePerHour();
+    if (rate > 0) {
+      track(this.add.text(W / 2, cY + 175, `${rate.toLocaleString()} coins/hr passive income`, {
+        fontSize: '10px', fontFamily: 'Arial', color: '#445566',
+      }).setOrigin(0.5).setDepth(D + 1));
+    }
+
+    const btnY = cY + cH - 28;
+    const btnG = track(this.add.graphics().setDepth(D + 1));
+    btnG.fillStyle(0x1A7A3A, 1); btnG.fillRoundedRect(W / 2 - 92, btnY - 20, 184, 40, 10);
+    btnG.fillStyle(0x27AE60, 1); btnG.fillRoundedRect(W / 2 - 92, btnY - 20, 184, 26, 10);
+    btnG.lineStyle(2, 0x2ECC71, 0.9); btnG.strokeRoundedRect(W / 2 - 92, btnY - 20, 184, 40, 10);
+
+    track(this.add.text(W / 2, btnY, 'Collect! 💰', {
+      fontSize: '19px', fontFamily: 'Arial Black',
+      color: '#FFFFFF', stroke: '#0A4A20', strokeThickness: 3,
+    }).setOrigin(0.5).setDepth(D + 2));
+
+    track(this.add.rectangle(W / 2, btnY, 184, 40, 0, 0)
+      .setInteractive({ useHandCursor: true }).setDepth(D + 3)
+      .on('pointerdown', () => {
+        flyingCoins(this, W / 2, H * 0.52, this.coinIconX, this.coinIconY, 10);
+        close();
+        this.updateHUD();
+      }));
+  }
+
+  // ─── RANK UP CEREMONY ─────────────────────────────────────────────────────
+
+  _showRankUpOverlay(rankDef) {
+    const W = this.scale.width;
+    const H = this.scale.height;
+    const D = 50;
+    const overlay = [];
+    const track   = o => { overlay.push(o); return o; };
+    const dismiss = () => {
+      this.tweens.add({
+        targets: overlay, alpha: 0, duration: 400,
+        onComplete: () => overlay.forEach(o => o.destroy()),
+      });
+    };
+
+    track(this.add.rectangle(W / 2, H / 2, W, H, 0x000000, 0.88).setDepth(D));
+
+    const glowG = track(this.add.graphics().setDepth(D));
+    glowG.fillStyle(0xFFD700, 0.06); glowG.fillCircle(W / 2, H * 0.42, 190);
+    glowG.fillStyle(0xFFD700, 0.03); glowG.fillCircle(W / 2, H * 0.42, 270);
+
+    const mainTitle = track(this.add.text(W / 2, H * 0.28, 'RANK UP!', {
+      fontSize: '54px', fontFamily: 'Arial Black',
+      color: '#FFD700', stroke: '#000000', strokeThickness: 8,
+    }).setOrigin(0.5).setScale(0.1).setDepth(D + 1));
+    this.tweens.add({ targets: mainTitle, scaleX: 1, scaleY: 1, duration: 400, ease: 'Back.easeOut' });
+
+    const rCol    = rankDef.color;
+    const rColHex = `#${rCol.toString(16).padStart(6, '0')}`;
+
+    const shieldG = track(this.add.graphics().setDepth(D + 1).setAlpha(0));
+    shieldG.fillStyle(rCol, 0.15); shieldG.fillCircle(W / 2, H * 0.45, 68);
+    shieldG.lineStyle(3, rCol, 0.80); shieldG.strokeCircle(W / 2, H * 0.45, 68);
+    this.tweens.add({ targets: shieldG, alpha: 1, duration: 350, delay: 200 });
+
+    const titleTxt = track(this.add.text(W / 2, H * 0.45, rankDef.title, {
+      fontSize: '36px', fontFamily: 'Arial Black',
+      color: rColHex, stroke: '#000000', strokeThickness: 5,
+    }).setOrigin(0.5).setAlpha(0).setDepth(D + 2));
+    this.tweens.add({ targets: titleTxt, alpha: 1, duration: 400, delay: 240 });
+
+    const subtxt = track(this.add.text(W / 2, H * 0.57, 'You have earned a new rank!', {
+      fontSize: '14px', fontFamily: 'Arial', color: '#AABBCC',
+    }).setOrigin(0.5).setAlpha(0).setDepth(D + 1));
+    this.tweens.add({ targets: subtxt, alpha: 1, duration: 400, delay: 320 });
+
+    burstParticles(this, W / 2, H * 0.42, [rCol, 0xFFD700, 0xFFFFFF, 0xFF8C00], 42);
+    screenShake(this, 0.013, 420);
+
+    const hintTxt = track(this.add.text(W / 2, H * 0.73, 'Tap to continue', {
+      fontSize: '13px', fontFamily: 'Arial', color: '#445566',
+    }).setOrigin(0.5).setAlpha(0).setDepth(D + 1));
+    this.tweens.add({ targets: hintTxt, alpha: 1, duration: 500, delay: 900 });
+    this.time.delayedCall(1400, () => {
+      this.tweens.add({ targets: hintTxt, alpha: 0.3, duration: 700, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+    });
+
+    const hitArea = track(this.add.rectangle(W / 2, H / 2, W, H, 0, 0)
+      .setInteractive().setDepth(D + 3).on('pointerdown', dismiss));
+    this.time.delayedCall(4500, () => { if (hitArea.active) dismiss(); });
+  }
+
+  // ─── RANK AWARD ───────────────────────────────────────────────────────────
+
+  _rankAward(action, mult = 1) {
+    const result = this.rankSystem.award(action, mult);
+    this.updateXPBar();
+    if (result?.rankUp) this._showRankUpOverlay(result.def);
+  }
+
   // ─── HUD UPDATE ────────────────────────────────────────────────────────────
 
   updateHUD() {
@@ -1201,6 +1400,7 @@ export class GameScene extends Phaser.Scene {
     this.shieldText.setText(`${GameState.shields}`);
     this.setWatchAdVisible(GameState.spins === 0);
     this._refreshChestBadge();
+    this.updateXPBar();
 
     // Coin value bounce
     this.tweens.killTweensOf(this.coinsText);
