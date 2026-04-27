@@ -14,6 +14,7 @@ import {
   screenShake, shieldBubble,
 } from '../effects/juice.js';
 import { CHEST_DEFS, randomChestType } from './ChestSystem.js';
+import { audioSystem } from '../effects/AudioSystem.js';
 
 export class RewardSystem {
   constructor(scene) {
@@ -37,6 +38,7 @@ export class RewardSystem {
     const amount = Math.round(segment.value * mult);
     GameState.addCoins(amount);
     this._grantXP('coins', mult);
+    audioSystem.coin();
     if (amount >= 5000) {
       this._jackpot(amount);
     } else {
@@ -63,6 +65,7 @@ export class RewardSystem {
     const amount = Math.round(segment.value * mult);
     GameState.addCoins(amount);
     this._grantXP('jackpot', mult);
+    audioSystem.jackpot();
     this._jackpot(amount);
   }
 
@@ -71,6 +74,7 @@ export class RewardSystem {
     this._grantXP('attack');
     this.scene.missionSystem?.progress('attacks');
     this.scene._refreshMissionBadge?.();
+    audioSystem.attack();
     this._toast('ATTACK!', '#FF4444');
     this._flashScreen(0xFF0000, 0.22, 380);
 
@@ -100,6 +104,7 @@ export class RewardSystem {
     this._grantXP('raid');
     this.scene.missionSystem?.progress('raids');
     this.scene._refreshMissionBadge?.();
+    audioSystem.raid();
     this._toast('RAID!', '#1ABC9C');
     this._flashScreen(0x1ABC9C, 0.18, 380);
 
@@ -115,6 +120,7 @@ export class RewardSystem {
   _on_shield(_segment) {
     GameState.addShield();
     this._grantXP('shield');
+    audioSystem.shield();
     this._toast('SHIELD!', '#5DADE2');
     const { width: W, height: H } = this.scene.scale;
     shieldBubble(this.scene, W / 2, H * 0.22);
@@ -123,6 +129,7 @@ export class RewardSystem {
   _on_spin(segment) {
     GameState.addSpins(segment.value);
     this._grantXP('spin');
+    audioSystem.spin();
     this._toast('EXTRA SPIN!', '#2ECC71');
     burstParticles(
       this.scene, this.scene.wheelCx, this.scene.wheelCy,

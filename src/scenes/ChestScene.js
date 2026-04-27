@@ -3,6 +3,7 @@ import { GameState }  from '../GameState.js';
 import { CHEST_DEFS, generateRewards } from '../systems/ChestSystem.js';
 import { CardSystem }  from '../systems/CardSystem.js';
 import { burstParticles } from '../effects/juice.js';
+import { audioSystem } from '../effects/AudioSystem.js';
 
 const REWARD_COLORS = {
   coins:  { bg: 0x7A5800, border: 0xFFD700, text: '#FFD700' },
@@ -171,6 +172,7 @@ export class ChestScene extends Phaser.Scene {
     this.tweens.killTweensOf(this.promptText);
     this.promptText.setAlpha(0);
 
+    audioSystem.chest();
     this.cameras.main.shake(240, 0.013);
 
     const proxy = { lidY: 0 };
@@ -335,6 +337,7 @@ export class ChestScene extends Phaser.Scene {
   }
 
   _showSetCompleteFlash(setName, callback) {
+    audioSystem.setComplete();
     const { W, H } = this;
     const D = 20;
     const bg = this.add.rectangle(W / 2, H / 2, W, H, 0x000000, 0.82).setDepth(D);

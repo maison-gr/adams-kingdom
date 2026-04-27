@@ -13,6 +13,7 @@ import { RivalSystem }   from '../systems/RivalSystem.js';
 import { RankSystem }    from '../systems/RankSystem.js';
 import { LoginStreak }  from '../systems/LoginStreak.js';
 import { drawBuilding, BUILDING_COLORS } from '../utils/buildingRenderer.js';
+import { audioSystem } from '../effects/AudioSystem.js';
 
 // ─── DATA ────────────────────────────────────────────────────────────────────
 
@@ -94,6 +95,7 @@ export class GameScene extends Phaser.Scene {
     this.drawWatchAdArea(W, H);
     this.drawResultText(W, H);
     this.animateStars();
+    this._showFirstTimeTutorial(W, H);
   }
 
   update() {
@@ -560,7 +562,33 @@ export class GameScene extends Phaser.Scene {
       this.scene.launch('ChestScene', { chestId: chest.id, chestType: chest.type });
     });
 
+    // Mute toggle — small speaker button below HUD right edge
+    const muteX = W - 24;
+    const muteY = 126;
+    this._muteBtnG    = this.add.graphics().setDepth(3);
+    this._muteBtnIcon = this.add.text(muteX, muteY, audioSystem.isMuted ? '🔇' : '🔊', {
+      fontSize: '14px',
+    }).setOrigin(0.5).setDepth(4);
+    this._drawMuteBtn(muteX, muteY);
+    this.add.circle(muteX, muteY, 20, 0x000000, 0)
+      .setInteractive({ useHandCursor: true })
+      .setDepth(5)
+      .on('pointerdown', () => {
+        const muted = audioSystem.toggleMute();
+        this._muteBtnIcon.setText(muted ? '🔇' : '🔊');
+        this._drawMuteBtn(muteX, muteY);
+      });
+
     this._refreshChestBadge(W);
+  }
+
+  _drawMuteBtn(x, y) {
+    const g = this._muteBtnG;
+    g.clear();
+    g.fillStyle(0x111122, 0.82);
+    g.fillCircle(x, y, 16);
+    g.lineStyle(1.5, audioSystem.isMuted ? 0x554455 : 0x334466, 0.70);
+    g.strokeCircle(x, y, 16);
   }
 
   _refreshChestBadge(W = this.scale.width) {
@@ -767,8 +795,15 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
+    this._dismissTutorial();
     this._outcomePending = true;
     this.spinBtnText.setText('...');
+
+    // Tick audio during spin
+    this._spinTickTimer = this.time.addEvent({
+      delay: 80, loop: true,
+      callback: () => audioSystem.tick(),
+    });
     this.missionSystem.progress('spins');
     this._refreshMissionBadge();
     if (this.spinPulseTween) this.spinPulseTween.pause();
@@ -788,12 +823,21 @@ export class GameScene extends Phaser.Scene {
   }
 
   _onWheelStopped(segment, targetIndex) {
+    // Stop tick audio
+    this._spinTickTimer?.remove();
+    this._spinTickTimer = null;
+
     const { width: W, height: H } = this.scale;
     burstParticles(this, this.wheelCx, this.wheelCy - this.wheelR,
       [segment.color, segment.light, 0xFFFFFF], 14);
 
     const nearMiss = this._isNearMiss(targetIndex);
-    if (nearMiss) nearMissFlash(this, W, H);
+    if (nearMiss) {
+      audioSystem.nearMiss();
+      nearMissFlash(this, W, H);
+    } else {
+      audioSystem.wheelStop();
+    }
 
     this.time.delayedCall(nearMiss ? 1900 : 180, () => {
       this.applyOutcome(segment);
@@ -827,6 +871,7 @@ export class GameScene extends Phaser.Scene {
 
     if (result.feverTriggered) {
       this._rankAward('feverTrigger');
+      audioSystem.fever();
       feverActivate(this, W, H);
       this.tweens.killTweensOf(this.feverRing);
       this.feverRing.setAlpha(1);
@@ -934,6 +979,7 @@ export class GameScene extends Phaser.Scene {
     GameState.buildings[index]++;
     GameState.save();
     this.refreshKingdom();
+    audioSystem.upgrade();
     this.showResult(`${BUILDING_NAMES[index]} upgraded!`, '#2ECC71');
     this.updateHUD();
     this._rankAward('upgrade');
@@ -1386,6 +1432,7 @@ export class GameScene extends Phaser.Scene {
     }).setOrigin(0.5).setAlpha(0).setDepth(D + 1));
     this.tweens.add({ targets: subtxt, alpha: 1, duration: 400, delay: 320 });
 
+    audioSystem.rankUp();
     burstParticles(this, W / 2, H * 0.42, [rCol, 0xFFD700, 0xFFFFFF, 0xFF8C00], 42);
     screenShake(this, 0.013, 420);
 
@@ -1496,6 +1543,7 @@ export class GameScene extends Phaser.Scene {
       .setInteractive({ useHandCursor: true }).setDepth(D + 3)
       .on('pointerdown', claim));
 
+    audioSystem.villageComplete();
     burstParticles(this, W / 2, H * 0.34, [0xFFD700, 0xFF8C00, 0xFFFFFF, 0x2ECC71], 48);
     screenShake(this, 0.015, 450);
   }
@@ -1603,6 +1651,37 @@ export class GameScene extends Phaser.Scene {
       }));
 
     this.time.delayedCall(10000, close);
+  }
+
+  // ─── FIRST-TIME TUTORIAL ──────────────────────────────────────────────────
+
+  _showFirstTimeTutorial(W, H) {
+    if (localStorage.getItem('tutStep') === 'done') return;
+
+    const D       = 5;
+    const arrowY  = H * 0.875 - 90;
+
+    const hint = this.add.text(W / 2, arrowY, 'Tap SPIN to play!', {
+      fontSize: '16px', fontFamily: 'Arial Black',
+      color: '#FFD700', stroke: '#000000', strokeThickness: 4,
+    }).setOrigin(0.5).setDepth(D);
+
+    const arrow = this.add.text(W / 2, arrowY + 32, '👆', { fontSize: '28px' })
+      .setOrigin(0.5).setDepth(D);
+
+    this._tutObjects = [hint, arrow];
+
+    this.tweens.add({
+      targets: arrow, y: arrowY + 44,
+      duration: 480, yoyo: true, repeat: -1, ease: 'Sine.easeInOut',
+    });
+  }
+
+  _dismissTutorial() {
+    if (!this._tutObjects) return;
+    this._tutObjects.forEach(o => o.destroy());
+    this._tutObjects = null;
+    localStorage.setItem('tutStep', 'done');
   }
 
   // ─── RANK AWARD ───────────────────────────────────────────────────────────
