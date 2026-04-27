@@ -16,7 +16,7 @@
  ╚═╝░░╚═╝╚═╝╚═╝░░╚══╝░╚═════╝░╚═════╝░░╚════╝░╚═╝░░░░╚═╝
 ```
 
-**A Coin Master-style mobile kingdom builder — spin, attack, raid, build.**
+**A Coin Master-style mobile kingdom builder — spin, attack, raid, build.**  
 **Premium hand-crafted visuals — every building drawn with code, no sprites required.**
 
 [![Phaser](https://img.shields.io/badge/Phaser-3.88-blue?style=for-the-badge&logo=javascript)](https://phaser.io)
@@ -35,43 +35,56 @@
 
 A fully playable mobile game built with **Phaser.js + Capacitor** — no Unity, no native code, just web tech packaged as a real iOS/Android app.
 
-Spin a gold wheel. Win coins to upgrade your kingdom. Attack rival villages. Dig for buried treasure. Open chests for rare rewards. Every spin matters.
+Spin a gold wheel. Win coins to upgrade your kingdom. Attack rival villages. Dig for buried treasure. Open chests for rare cards and rewards. Climb the rank ladder from Peasant to Emperor. Every spin matters.
 
-Every pixel is drawn with **Phaser Graphics primitives** — no external art assets. The game features a deep-sky night background with a glowing moon halo and distant city silhouette, a cobblestone kingdom path lined with bushes, 6 architecturally distinct buildings that evolve across 4 levels, and a glass-morphism HUD panel with inner glow and double-border styling.
+Every pixel is drawn with **Phaser Graphics primitives** — no external art assets, no sprite sheets, no audio files. The game features synthesized Web Audio API sounds, a deep-sky night background with glowing moon halo and distant city silhouette, a cobblestone kingdom path lined with bushes, 6 architecturally distinct buildings that evolve across 4 levels, and a glass-morphism HUD panel with inner glow and double-border styling.
 
 ---
 
 ## 🎮 Gameplay Loop
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                                                             │
-│   SPIN WHEEL  ──▶  Land on segment  ──▶  Reward triggers   │
-│        ▲                                       │           │
-│        │         ┌────────────────────────────┘           │
-│        │         ▼                                         │
-│   Use coins  ◀── COINS      ──▶  Upgrade buildings         │
-│        │         ATTACK     ──▶  Destroy enemy building     │
-│        │         RAID       ──▶  Dig 3 spots for treasure   │
-│        │         CHEST      ──▶  Open for random rewards    │
-│        │         SHIELD     ──▶  Protect your buildings     │
-│        └─────    SPIN +1    ──▶  Free extra spin            │
-│                                                             │
-└─────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────┐
+│                                                                  │
+│   SPIN WHEEL  ──▶  Land on segment  ──▶  Reward triggers        │
+│        ▲                                       │                 │
+│        │         ┌─────────────────────────────┘                │
+│        │         ▼                                               │
+│   Use coins  ◀── COINS      ──▶  Upgrade buildings              │
+│        │         ATTACK     ──▶  Choose target · destroy · steal │
+│        │         RAID       ──▶  Dig 3 spots for buried treasure │
+│        │         CHEST      ──▶  Open for cards + random rewards │
+│        │         SHIELD     ──▶  Protect your buildings          │
+│        └─────    SPIN +1    ──▶  Free extra spin                 │
+│                                                                  │
+│   Combo streak  ──▶  Fever mode (×2 rewards, 5 spins)           │
+│   Complete village  ──▶  Advance to next village · bonus reward  │
+│   Daily login  ──▶  7-day streak rewards                        │
+│   Collect 30 cards  ──▶  Claim set rewards                      │
+│                                                                  │
+└──────────────────────────────────────────────────────────────────┘
 ```
 
 ### 🎡 The Wheel
 
 | Segment | Color | What Happens |
-|:-------:|:------:|:-------------|
+|:-------:|:-----:|:-------------|
 | 💰 100 coins | Red | Instant coins added |
-| ⚔️ ATTACK | Orange | Launch AttackScene — destroy an enemy building & steal |
+| ⚔️ ATTACK | Orange | Target-select panel → AttackScene: destroy & steal |
 | 💰 500 coins | Green | Instant coins added |
 | 🛡️ SHIELD | Blue | Protect one building from the next attack |
-| 🎁 CHEST | Teal | Win a Wooden / Silver / Golden chest |
+| 🎰 JACKPOT | Gold | 5,000 coins + gold rain + screen shake |
+| 🎁 CHEST | Teal | Win a Wooden / Silver / Golden chest (auto-opens) |
 | 🔄 SPIN +1 | Emerald | Free extra spin granted |
-| 💰 1000 coins | Gold | Instant coins added |
-| ⛏️ RAID | Dark teal | Launch RaidScene — dig 3 of 4 spots for buried coins |
+| 💰 1,000 coins | Yellow-Gold | Instant coins added |
+| ⛏️ RAID | Dark teal | RaidScene: dig 3 of 4 spots for buried coins |
+
+### 🔥 Combo System & Fever Mode
+
+- Landing the **same segment type twice in a row** starts a streak (displayed above the wheel hub)
+- 3+ identical results in a row unlocks a **×1.5 multiplier** and XP bonus
+- 5 identical results triggers **Fever Mode** — a double-gold ring pulses around the wheel and all rewards are **×2** for the next 5 spins
+- A near-miss (landing adjacent to JACKPOT) plays a descending whoosh effect
 
 ### 🏰 Your Kingdom
 
@@ -92,15 +105,98 @@ Ruins   →  Built   →  Windows   →  Flagpole   (each with 4 upgrade levels)
 | 🏰 Castle | Dark stone keep | Flanking round towers, portcullis, pennant flag |
 | 🏛️ Palace | Royal purple dome | Onion dome with gold spire, colonnaded facade, ornate crown |
 
-All buildings are rendered entirely with **Phaser Graphics primitives** — 3D body illusion (lit face, side wall, roof), hand-placed windows, doors, and level-specific decorations. Ruins state uses a collapsed-wall silhouette with rubble piles.
+All buildings are rendered entirely with **Phaser Graphics primitives** — 3D body illusion (lit face, side wall, roof), hand-placed windows, doors, and level-specific decorations.
 
-### 🎁 Chest Tiers
+**Village progression**: upgrade all 6 buildings to max → Village Complete ceremony → advance to the next village. Building costs scale by `1 + (village − 1) × 0.4` per village, and passive income grows with your buildings.
 
-| Chest | Rarity | Rewards |
-|:-----:|:------:|:--------|
-| 🪵 Wooden | 65% | 50–200 coins · 1 spin · 1 shield |
-| 🥈 Silver | 28% | 300–1,000 coins · 2 spins · 2 shields |
-| 🥇 Golden | 7% | 1,000–5,000 coins · 3 spins · 3 shields |
+### 🎁 Chest Tiers & Card Drops
+
+| Chest | Rarity | Coins | Spins | Shields | Cards drawn |
+|:-----:|:------:|:-----:|:-----:|:-------:|:-----------:|
+| 🪵 Wooden | 65% | 50–200 | 1 | 1 | 1 card (common-weighted) |
+| 🥈 Silver | 28% | 300–1,000 | 2 | 2 | 2 cards (rare-weighted) |
+| 🥇 Golden | 7% | 1,000–5,000 | 3 | 3 | 3 cards (gold-weighted) |
+
+### 🃏 Card Collection
+
+30 cards spread across 5 themed sets (6 cards each — 3 rarities):
+
+| Set | Icon | Reward for completing |
+|:----|:----:|:----------------------|
+| Peasant's Life | 🌾 | 2,000 coins · 10 spins |
+| Knight's Arsenal | ⚔️ | 4,000 coins · 20 spins |
+| Baron's Domain | 🏰 | 8,000 coins · 35 spins |
+| Count's Treasury | 💎 | 15,000 coins · 50 spins |
+| Emperor's Glory | 🏆 | 30,000 coins · 100 spins |
+
+Cards drop automatically when opening chests. Collect all 6 in a set → flash ceremony → claim the coin + spin reward in the **Card Collection** screen (accessible from the Missions screen).
+
+### ⭐ Rank / XP System
+
+7 ranks — earn XP on every action:
+
+| Rank | Title | XP to next |
+|:----:|:-----:|:----------:|
+| 0 | Peasant | 500 |
+| 1 | Knight | 1,500 |
+| 2 | Baron | 3,500 |
+| 3 | Count | 7,000 |
+| 4 | Duke | 14,000 |
+| 5 | King | 28,000 |
+| 6 | Emperor | — (max) |
+
+XP awarded per action: spin (10), coin win (5), attack (30), raid (25), chest (20), shield (8), jackpot (80), upgrade (40), combo×3 (15), fever trigger (50), mission complete (60). Rank-up triggers a full-screen overlay ceremony with burst particles and a fanfare sound.
+
+### 💰 Passive Income & Offline Earnings
+
+Each building level passively generates coins per minute (0 / 5 / 15 / 40 at levels 0–3). Income accrues for up to **4 hours** while the game is closed and is collected on next launch via the "Welcome Back!" screen.
+
+### 🔥 Daily Login Streak
+
+Return each day to claim escalating rewards on a 7-day cycle:
+
+| Day | Reward |
+|:---:|:-------|
+| 1 | +10 Spins |
+| 2 | +500 Coins |
+| 3 | 1 Gold Chest |
+| 4 | +20 Spins |
+| 5 | +2,000 Coins |
+| 6 | 1 Shield + 10 Spins |
+| 7 | +5,000 Coins + 30 Spins |
+
+Missing a day resets the streak.
+
+### 📋 Daily Missions
+
+Three randomized missions reset every 24 hours (e.g. *"Spin 5 times"*, *"Upgrade 2 buildings"*, *"Open a chest"*). Completing all 3 unlocks a **Daily Bonus**. Mission notifications appear as a badge on the clipboard icon in the HUD.
+
+---
+
+## 🔊 Audio & Game Feel
+
+All sounds are **synthesized at runtime** using the Web Audio API — no audio files bundled:
+
+| Event | Sound |
+|:------|:------|
+| Wheel spinning | Rapid square-wave tick (80-millisecond interval) |
+| Wheel stop | Low sine thud |
+| Near-miss | Descending sawtooth whoosh |
+| Coin win | Ascending 3-note jingle |
+| Jackpot | 5-note fanfare + overtone layer |
+| Attack / Raid | Aggressive sweep / mid ascending arpeggio |
+| Shield | Soft bell chord |
+| Extra spin | Quick triangle arpeggio |
+| Fever mode | Rising sawtooth power-up |
+| Chest open | Dramatic reveal sweep + jingle |
+| Rank up | 6-note ascending fanfare |
+| Set complete | 4-note sting with overtones |
+| Village complete | Grand melody + bass chord |
+| Building upgrade | Rising triangle tone |
+
+Haptic feedback fires via `navigator.vibrate()` on major events. A **🔊/🔇 mute toggle** sits below the HUD right edge; state persists in `localStorage`.
+
+New players see a one-time **tutorial hint** ("Tap SPIN to play! 👆") that auto-dismisses on first spin.
 
 ---
 
@@ -167,26 +263,42 @@ adams-kingdom/
 │
 ├── src/
 │   ├── main.js                    Phaser config + scene registry
-│   ├── GameState.js               All state, localStorage, spin refill timer
+│   ├── GameState.js               All state, localStorage, spin refill,
+│   │                              passive income, village progression
 │   │
 │   ├── scenes/
 │   │   ├── BootScene.js           Splash / preload
-│   │   ├── GameScene.js           Main: wheel · kingdom · HUD · spin button
+│   │   ├── GameScene.js           Main: wheel · kingdom · HUD · modals
+│   │   │                          (rank-up, village-complete, offline earnings,
+│   │   │                           login streak, attack target panel, rival banner)
 │   │   ├── AttackScene.js         Enemy village — tap to destroy + steal coins
 │   │   ├── RaidScene.js           Dig field — 3 picks, hidden coin loot
-│   │   └── ChestScene.js          Opening ceremony — lid pop + reward cards
+│   │   ├── ChestScene.js          Opening ceremony — lid pop + reward cards + card reveal
+│   │   ├── LeaderboardScene.js    Top-10 leaderboard (coins), synced from backend
+│   │   ├── MissionsScene.js       Daily missions list, countdown timer, Cards button
+│   │   └── CardsScene.js          Card collection — 5 set panels, claim rewards
 │   │
 │   ├── systems/
 │   │   ├── SpinSystem.js          Wheel physics: ease-out quart + bounce-settle
 │   │   ├── RewardSystem.js        Single dispatcher for all spin outcomes
-│   │   └── ChestSystem.js         Chest types, reward tables, weighted picks
+│   │   ├── ChestSystem.js         Chest types, reward tables, weighted picks
+│   │   ├── ComboSystem.js         Streak tracking, ×1.5 multiplier, Fever mode
+│   │   ├── MissionSystem.js       Daily missions, 24-hr reset, progress tracking
+│   │   ├── RivalSystem.js         Offline rival attacks, revenge queue
+│   │   ├── RankSystem.js          7-tier XP system, rank-up detection
+│   │   ├── LoginStreak.js         7-day login streak, reward definitions
+│   │   └── CardSystem.js          30-card collection, chest drop logic, set claims
 │   │
 │   ├── utils/
 │   │   └── buildingRenderer.js    Shared drawBuilding() — GameScene + AttackScene
 │   │
 │   ├── effects/
-│   │   └── juice.js               VFX: flyingCoins · burstParticles · goldRain
-│   │                                    screenShake · upgradeEffect · shieldBubble
+│   │   ├── juice.js               VFX: flyingCoins · burstParticles · goldRain
+│   │   │                               screenShake · upgradeEffect · shieldBubble
+│   │   │                               nearMissFlash · feverActivate · streakBurst
+│   │   └── AudioSystem.js         Synthesized Web Audio API sounds (14 effects),
+│   │                              haptic feedback, mute toggle, localStorage persist
+│   │
 │   └── api/
 │       └── client.js              Offline-safe REST client
 │
@@ -194,7 +306,7 @@ adams-kingdom/
 │   └── src/
 │       ├── index.js               Express entry point
 │       ├── models/Player.js       Mongoose schema
-│       └── routes/players.js      /sync  /raid-target  /attack/:id  /leaderboard
+│       └── routes/players.js     /sync  /raid-target  /attack/:id  /leaderboard
 │
 ├── index.html
 ├── vite.config.js
@@ -206,13 +318,17 @@ adams-kingdom/
 ## 🗺️ Roadmap
 
 ```
-Phase 1 — Core loop  ████████████████████ 100%  ✅
-Phase 2 — Social     ██████████░░░░░░░░░░  50%  🔨
-Phase 3 — Monetize   ░░░░░░░░░░░░░░░░░░░░   0%  📋
-Phase 4 — Ship       ░░░░░░░░░░░░░░░░░░░░   0%  📋
+Sprint 1 — Core loop     ████████████████████ 100%  ✅
+Sprint 2 — Social        ████████████████████ 100%  ✅
+Sprint 3 — Progression   ████████████████████ 100%  ✅
+Sprint 4 — Retention     ████████████████████ 100%  ✅
+Sprint 5A — Cards        ████████████████████ 100%  ✅
+Sprint 5B — Audio/Feel   ████████████████████ 100%  ✅
+Phase 3 — Monetize       ░░░░░░░░░░░░░░░░░░░░   0%  📋
+Phase 4 — Ship           ░░░░░░░░░░░░░░░░░░░░   0%  📋
 ```
 
-**Phase 1 — Core loop** ✅
+**Sprint 1 — Core loop** ✅
 - [x] Spin wheel — ease-out quart physics + bounce-settle
 - [x] Kingdom with 6 buildings × 4 upgrade levels
 - [x] SpinSystem + RewardSystem architecture
@@ -223,17 +339,50 @@ Phase 4 — Ship       ░░░░░░░░░░░░░░░░░░░
 - [x] Spin refill timer (1 spin / 5 min, up to 50)
 - [x] Major UI/UX overhaul — unique building art, night sky, glass-morphism HUD
 
-**Phase 2 — Social** 🔨
+**Sprint 2 — Social** ✅
 - [x] Node.js + MongoDB backend — player sync, raid targets
 - [x] Capacitor 6 — iOS + Android packaging
-- [x] In-game leaderboard screen (top 10 by coins, trophy button in HUD)
-- [ ] Push notifications (daily free spins)
+- [x] In-game leaderboard screen (top 10 by coins)
+- [x] Combo system — streak tracking, ×1.5 multiplier
+- [x] Fever mode — ×2 rewards for 5 spins after 5-streak
+- [x] Near-miss flash effect adjacent to JACKPOT
+- [x] Rival system — offline attack notifications + revenge queue
+
+**Sprint 3 — Progression** ✅
+- [x] Rank / XP system — 7 tiers (Peasant → Emperor), XP bar in HUD
+- [x] Rank-up ceremony — full-screen overlay with burst particles + fanfare
+- [x] Passive income — per-building coins/min, 4-hour offline cap
+- [x] Offline earnings screen — "Welcome Back!" modal on next launch
+
+**Sprint 4 — Retention** ✅
+- [x] Village progression — costs scale per village, all-max triggers ceremony
+- [x] Village Complete ceremony — advance + bonus spins/coins reward
+- [x] Daily login streak — 7-day cycle, escalating rewards, miss = reset
+- [x] Daily missions system — 3 missions, 24-hr reset, HUD badge counter
+
+**Sprint 5A — Card Collection** ✅
+- [x] 30-card collection across 5 themed sets (common / rare / gold rarities)
+- [x] Cards drop automatically from chests (1–3 per chest, rarity-weighted)
+- [x] Card reveal row in ChestScene after opening
+- [x] CardsScene — 5 set panels, collected/uncollected slots, CLAIM button
+- [x] Set Complete ceremony — flash overlay + set-complete sound
+- [x] "My Card Collection" shortcut button in MissionsScene
+
+**Sprint 5B — Audio & Game Feel** ✅
+- [x] AudioSystem — 14 synthesized Web Audio API sounds (no audio files)
+- [x] Haptic feedback via `navigator.vibrate()` on major events
+- [x] Spin tick timer during wheel spin; wheelStop / nearMiss landing sounds
+- [x] Per-outcome sounds: coin, jackpot, attack, raid, shield, extra spin
+- [x] Ceremony sounds: fever, rank-up, set-complete, village-complete, upgrade
+- [x] Mute toggle button (🔊/🔇) with localStorage persistence
+- [x] First-time tutorial hint — bouncing arrow auto-dismissed on first spin
 
 **Phase 3 — Monetize** 📋
 - [ ] AdMob rewarded video ads — extra spins
 - [ ] In-app purchases — coin packs, spin bundles
 
 **Phase 4 — Ship** 📋
+- [ ] Push notifications (daily free spin reminder)
 - [ ] Google Play Store submission
 - [ ] Apple App Store submission
 
@@ -248,6 +397,7 @@ Phase 4 — Ship       ░░░░░░░░░░░░░░░░░░░
 | Native | Capacitor 6 | WebView wrapper — one codebase, both stores |
 | Backend | Express + Mongoose | Thin REST API, offline-tolerant client |
 | Database | MongoDB Atlas | Schemaless player docs, free tier |
+| Audio | Web Audio API | Synthesized sounds — zero audio files |
 | State | localStorage | Instant, offline-first, no login required |
 
 ---
