@@ -11,6 +11,7 @@ import { ComboSystem }    from '../systems/ComboSystem.js';
 import { MissionSystem } from '../systems/MissionSystem.js';
 import { RivalSystem }   from '../systems/RivalSystem.js';
 import { RankSystem }    from '../systems/RankSystem.js';
+import { LoginStreak }  from '../systems/LoginStreak.js';
 import { drawBuilding, BUILDING_COLORS } from '../utils/buildingRenderer.js';
 
 // ─── DATA ────────────────────────────────────────────────────────────────────
@@ -60,21 +61,27 @@ export class GameScene extends Phaser.Scene {
 
     GameState.checkRefill();
     const offlineEarned = GameState.checkPassiveIncome();
+    const loginBonus    = new LoginStreak().check();
     this._raidTarget  = null;
     syncPlayer(GameState);
     this.events.on('wake', () => {
       this.updateHUD();
       this._refreshMissionBadge();
+      if (GameState.buildings.every(lvl => lvl >= 3)) this._showVillageComplete();
     });
 
-    if (offlineEarned > 0) {
+    const showOffline = offlineEarned > 0 ? () => this._showOfflineEarnings(offlineEarned) : null;
+    if (loginBonus) {
+      this.time.delayedCall(300, () => this._showLoginStreakModal(loginBonus, showOffline));
+    } else if (offlineEarned > 0) {
       this.time.delayedCall(500, () => this._showOfflineEarnings(offlineEarned));
     }
 
-    // Check if a rival attacked while the player was away
+    // Rival attack banner — delayed enough to not clash with welcome modals
     const rivalAttack = this.rivalSystem.checkOfflineAttack();
     if (rivalAttack) {
-      this.time.delayedCall(offlineEarned > 0 ? 2000 : 1200, () => this._showRivalAttackBanner(rivalAttack));
+      const rivalDelay = loginBonus ? 4500 : (offlineEarned > 0 ? 2000 : 1200);
+      this.time.delayedCall(rivalDelay, () => this._showRivalAttackBanner(rivalAttack));
     }
     // Re-sync every 60 s
     this.time.addEvent({ delay: 60000, loop: true, callback: () => syncPlayer(GameState) });
@@ -451,25 +458,21 @@ export class GameScene extends Phaser.Scene {
     });
 
     // ── Rank / XP progress bar ────────────────────────────────────────────────
-    const rankDef0 = this.rankSystem.currentDef;
-    const rCol0    = rankDef0.color;
-    const rColHex0 = `#${rCol0.toString(16).padStart(6, '0')}`;
-
-    panel.fillStyle(rCol0, 0.90);
-    panel.fillCircle(16, 89, 4.5);
-    panel.fillStyle(0xFFFFFF, 0.35);
-    panel.fillCircle(15, 88, 2.5);
     panel.fillStyle(0x020210, 1);
     panel.fillRoundedRect(90, 84, W - 180, 10, 4);
 
-    this._xpBarFill = this.add.graphics().setDepth(2);
+    this._rankDot    = this.add.graphics().setDepth(2);
+    this._xpBarFill  = this.add.graphics().setDepth(2);
 
+    const rankDef0 = this.rankSystem.currentDef;
+    const rColHex0 = `#${rankDef0.color.toString(16).padStart(6, '0')}`;
     this._rankTitleText = this.add.text(24, 89, rankDef0.title, {
       fontSize: '9px', fontFamily: 'Arial Black', color: rColHex0,
     }).setOrigin(0, 0.5).setDepth(2);
 
-    const xpInfo0 = this.rankSystem.isMaxRank ? 'MAX'
-      : `${this.rankSystem.xpIntoRank}/${this.rankSystem.xpForNextRank}`;
+    const xpInfo0 = this.rankSystem.isMaxRank
+      ? `V.${GameState.village} · MAX`
+      : `V.${GameState.village}  ${this.rankSystem.xpIntoRank}/${this.rankSystem.xpForNextRank}`;
     this._xpProgressText = this.add.text(W - 10, 89, xpInfo0, {
       fontSize: '9px', fontFamily: 'Arial Black', color: '#556677',
     }).setOrigin(1, 0.5).setDepth(2);
@@ -582,6 +585,14 @@ export class GameScene extends Phaser.Scene {
     const barW    = W - 180;
     const pct     = rs.progressPct;
 
+    // Rank dot (dynamic color)
+    this._rankDot?.clear();
+    this._rankDot?.fillStyle(rCol, 0.90);
+    this._rankDot?.fillCircle(16, 89, 4.5);
+    this._rankDot?.fillStyle(0xFFFFFF, 0.35);
+    this._rankDot?.fillCircle(15, 88, 2.5);
+
+    // XP bar fill
     this._xpBarFill.clear();
     const fillW = rs.isMaxRank ? barW : (pct > 0 ? Math.max(barW * pct, 6) : 0);
     if (fillW > 0) {
@@ -592,7 +603,9 @@ export class GameScene extends Phaser.Scene {
     }
 
     this._rankTitleText?.setText(def.title).setColor(rColHex);
-    const xpInfo = rs.isMaxRank ? 'MAX' : `${rs.xpIntoRank}/${rs.xpForNextRank}`;
+    const xpInfo = rs.isMaxRank
+      ? `V.${GameState.village} · MAX`
+      : `V.${GameState.village}  ${rs.xpIntoRank}/${rs.xpForNextRank}`;
     this._xpProgressText?.setText(xpInfo);
   }
 
@@ -907,7 +920,8 @@ export class GameScene extends Phaser.Scene {
   // ─── BUILDING TAP ──────────────────────────────────────────────────────────
 
   onBuildingTap(index) {
-    const cost    = BUILDING_COSTS[index];
+    const villageMultiplier = 1 + (GameState.village - 1) * 0.4;
+    const cost    = Math.round(BUILDING_COSTS[index] * villageMultiplier);
     const current = GameState.buildings[index];
 
     if (current >= 3) { this.showResult('Max level!', '#AAAAAA'); return; }
@@ -925,6 +939,10 @@ export class GameScene extends Phaser.Scene {
     this._rankAward('upgrade');
     this.missionSystem.progress('upgrades');
     this._refreshMissionBadge();
+
+    if (GameState.buildings.every(lvl => lvl >= 3)) {
+      this.time.delayedCall(900, () => this._showVillageComplete());
+    }
 
     const { x, groundY } = this.buildingGraphics[index];
     upgradeEffect(this, x, groundY - 30, BUILDING_COLORS[index]);
@@ -1382,6 +1400,209 @@ export class GameScene extends Phaser.Scene {
     const hitArea = track(this.add.rectangle(W / 2, H / 2, W, H, 0, 0)
       .setInteractive().setDepth(D + 3).on('pointerdown', dismiss));
     this.time.delayedCall(4500, () => { if (hitArea.active) dismiss(); });
+  }
+
+  // ─── VILLAGE COMPLETE ─────────────────────────────────────────────────────
+
+  _showVillageComplete() {
+    const W = this.scale.width;
+    const H = this.scale.height;
+    const D = 45;
+    const currentVillage = GameState.village;
+    const bonusSpins = 25 + (currentVillage - 1) * 10;
+    const bonusCoins = 1500 * currentVillage;
+
+    const overlay = [];
+    const track   = o => { overlay.push(o); return o; };
+    let   claimed = false;
+
+    const claim = () => {
+      if (claimed) return;
+      claimed = true;
+      GameState.nextVillage();
+      GameState.addSpins(bonusSpins);
+      GameState.addCoins(bonusCoins);
+      this.refreshKingdom();
+      this.updateHUD();
+      goldRain(this, W, H);
+      this.tweens.add({
+        targets: overlay, alpha: 0, duration: 500,
+        onComplete: () => overlay.forEach(o => o.destroy()),
+      });
+    };
+
+    track(this.add.rectangle(W / 2, H / 2, W, H, 0x000000, 0.88).setDepth(D));
+
+    const glowG = track(this.add.graphics().setDepth(D));
+    glowG.fillStyle(0xFFD700, 0.07); glowG.fillCircle(W / 2, H * 0.36, 200);
+
+    const mainTxt = track(this.add.text(W / 2, H * 0.20, '🎉 VILLAGE', {
+      fontSize: '44px', fontFamily: 'Arial Black',
+      color: '#FFD700', stroke: '#000000', strokeThickness: 7,
+    }).setOrigin(0.5).setScale(0.1).setDepth(D + 1));
+
+    const compTxt = track(this.add.text(W / 2, H * 0.31, 'COMPLETE!', {
+      fontSize: '44px', fontFamily: 'Arial Black',
+      color: '#FFFFFF', stroke: '#000000', strokeThickness: 7,
+    }).setOrigin(0.5).setScale(0.1).setDepth(D + 1));
+    this.tweens.add({ targets: [mainTxt, compTxt], scaleX: 1, scaleY: 1, duration: 420, ease: 'Back.easeOut' });
+
+    const transitionTxt = track(this.add.text(W / 2, H * 0.42,
+      `Village ${currentVillage}  →  Village ${currentVillage + 1}`, {
+        fontSize: '17px', fontFamily: 'Arial', color: '#AABBCC',
+      }).setOrigin(0.5).setAlpha(0).setDepth(D + 1));
+    this.tweens.add({ targets: transitionTxt, alpha: 1, duration: 400, delay: 300 });
+
+    // Reward card
+    const rwdG = track(this.add.graphics().setDepth(D + 1).setAlpha(0));
+    const rwdY = H * 0.54;
+    rwdG.fillStyle(0x0A0A22, 0.88); rwdG.fillRoundedRect(W / 2 - 130, rwdY - 32, 260, 70, 12);
+    rwdG.lineStyle(2, 0xFFD700, 0.45); rwdG.strokeRoundedRect(W / 2 - 130, rwdY - 32, 260, 70, 12);
+    this.tweens.add({ targets: rwdG, alpha: 1, duration: 400, delay: 360 });
+
+    const coinsRwdTxt = track(this.add.text(W / 2 - 44, rwdY,
+      `💰 +${bonusCoins.toLocaleString()}`, {
+        fontSize: '18px', fontFamily: 'Arial Black',
+        color: '#FFD700', stroke: '#000', strokeThickness: 3,
+      }).setOrigin(0.5).setAlpha(0).setDepth(D + 2));
+    this.tweens.add({ targets: coinsRwdTxt, alpha: 1, duration: 400, delay: 400 });
+
+    const spinsRwdTxt = track(this.add.text(W / 2 + 60, rwdY,
+      `🎰 +${bonusSpins}`, {
+        fontSize: '18px', fontFamily: 'Arial Black',
+        color: '#2ECC71', stroke: '#000', strokeThickness: 3,
+      }).setOrigin(0.5).setAlpha(0).setDepth(D + 2));
+    this.tweens.add({ targets: spinsRwdTxt, alpha: 1, duration: 400, delay: 430 });
+
+    const rwdLblTxt = track(this.add.text(W / 2, rwdY + 22, 'Bonus Reward!', {
+      fontSize: '11px', fontFamily: 'Arial', color: '#445566',
+    }).setOrigin(0.5).setAlpha(0).setDepth(D + 2));
+    this.tweens.add({ targets: rwdLblTxt, alpha: 1, duration: 400, delay: 430 });
+
+    // Build button
+    const btnY = H * 0.76;
+    const btnG = track(this.add.graphics().setDepth(D + 1));
+    btnG.fillStyle(0x7B2D00, 1); btnG.fillRoundedRect(W / 2 - 120, btnY - 28, 240, 56, 14);
+    btnG.fillStyle(0xE67E22, 1); btnG.fillRoundedRect(W / 2 - 120, btnY - 28, 240, 40, 14);
+    btnG.fillStyle(0xF5A623, 0.50); btnG.fillRoundedRect(W / 2 - 116, btnY - 24, 232, 18, 10);
+    btnG.lineStyle(2.5, 0xFFD700, 0.90); btnG.strokeRoundedRect(W / 2 - 120, btnY - 28, 240, 56, 14);
+
+    track(this.add.text(W / 2, btnY, `Build Village ${currentVillage + 1}!`, {
+      fontSize: '22px', fontFamily: 'Arial Black',
+      color: '#FFFFFF', stroke: '#7B2D00', strokeThickness: 5,
+    }).setOrigin(0.5).setDepth(D + 2));
+
+    track(this.add.rectangle(W / 2, btnY, 240, 56, 0, 0)
+      .setInteractive({ useHandCursor: true }).setDepth(D + 3)
+      .on('pointerdown', claim));
+
+    burstParticles(this, W / 2, H * 0.34, [0xFFD700, 0xFF8C00, 0xFFFFFF, 0x2ECC71], 48);
+    screenShake(this, 0.015, 450);
+  }
+
+  // ─── DAILY LOGIN STREAK ───────────────────────────────────────────────────
+
+  _showLoginStreakModal(bonusInfo, afterCallback = null) {
+    const W = this.scale.width;
+    const H = this.scale.height;
+    const D = 42;
+    const overlay  = [];
+    const track    = o => { overlay.push(o); return o; };
+    let   dismissed = false;
+
+    const close = () => {
+      if (dismissed) return;
+      dismissed = true;
+      this.tweens.add({
+        targets: overlay, alpha: 0, duration: 300,
+        onComplete: () => {
+          overlay.forEach(o => o.destroy());
+          afterCallback?.();
+        },
+      });
+    };
+
+    track(this.add.rectangle(W / 2, H / 2, W, H, 0x000000, 0.84).setDepth(D));
+
+    const cY = H * 0.26;
+    const cH = 318;
+    const bg = track(this.add.graphics().setDepth(D));
+    bg.fillStyle(0x05051E, 0.97);
+    bg.fillRoundedRect(20, cY, W - 40, cH, 16);
+    bg.lineStyle(2, 0xFFD700, 0.65);
+    bg.strokeRoundedRect(20, cY, W - 40, cH, 16);
+    bg.fillStyle(0xFFFFFF, 0.04);
+    bg.fillRoundedRect(20, cY, W - 40, 44, 16);
+
+    track(this.add.text(W / 2, cY + 26, `🔥 Day ${bonusInfo.streak} Login Streak!`, {
+      fontSize: '20px', fontFamily: 'Arial Black',
+      color: '#FFD700', stroke: '#000000', strokeThickness: 4,
+    }).setOrigin(0.5).setDepth(D + 1));
+
+    // 7-day dot row
+    const dotY   = cY + 70;
+    const dotSpan = W - 80;
+    const dotGap  = dotSpan / 7;
+    for (let d = 1; d <= 7; d++) {
+      const dx    = 40 + (d - 1) * dotGap + dotGap / 2;
+      const past  = d < bonusInfo.streak;
+      const today = d === bonusInfo.streak;
+      const dotG  = track(this.add.graphics().setDepth(D + 1));
+      const col   = today ? 0xFFD700 : past ? 0xD4A017 : 0x1A2244;
+      const a     = today ? 1.0 : past ? 0.80 : 0.55;
+      dotG.fillStyle(col, a);
+      dotG.fillCircle(dx, dotY, today ? 13 : 9);
+      if (today) {
+        dotG.lineStyle(2.5, 0xFFFFFF, 0.55);
+        dotG.strokeCircle(dx, dotY, 13);
+      }
+      track(this.add.text(dx, dotY, String(d), {
+        fontSize: today ? '11px' : '9px', fontFamily: 'Arial Black',
+        color: today ? '#000000' : past ? '#FFFFFF' : '#334466',
+      }).setOrigin(0.5).setDepth(D + 2));
+    }
+
+    track(this.add.text(W / 2, cY + 106, "TODAY'S REWARD", {
+      fontSize: '11px', fontFamily: 'Arial Black', color: '#445566',
+    }).setOrigin(0.5).setDepth(D + 1));
+
+    track(this.add.text(W / 2, cY + 158, bonusInfo.dayDef.icon, {
+      fontSize: '52px',
+    }).setOrigin(0.5).setDepth(D + 1));
+
+    track(this.add.text(W / 2, cY + 218, bonusInfo.dayDef.label, {
+      fontSize: '22px', fontFamily: 'Arial Black',
+      color: '#FFD700', stroke: '#000000', strokeThickness: 4,
+      align: 'center',
+    }).setOrigin(0.5).setDepth(D + 1));
+
+    // Claim button
+    const btnY = cY + cH - 30;
+    const btnG = track(this.add.graphics().setDepth(D + 1));
+    btnG.fillStyle(0x7A5800, 1); btnG.fillRoundedRect(W / 2 - 100, btnY - 22, 200, 44, 12);
+    btnG.fillStyle(0xD4A017, 1); btnG.fillRoundedRect(W / 2 - 100, btnY - 22, 200, 30, 12);
+    btnG.lineStyle(2, 0xFFD700, 0.95); btnG.strokeRoundedRect(W / 2 - 100, btnY - 22, 200, 44, 12);
+    btnG.fillStyle(0xFFF5CC, 0.30); btnG.fillRoundedRect(W / 2 - 96, btnY - 18, 192, 12, 8);
+
+    track(this.add.text(W / 2, btnY, 'CLAIM REWARD!', {
+      fontSize: '20px', fontFamily: 'Arial Black',
+      color: '#FFFFFF', stroke: '#5C3D00', strokeThickness: 4,
+    }).setOrigin(0.5).setDepth(D + 2));
+
+    track(this.add.rectangle(W / 2, btnY, 200, 44, 0, 0)
+      .setInteractive({ useHandCursor: true }).setDepth(D + 3)
+      .on('pointerdown', () => {
+        const r = bonusInfo.reward;
+        if (r.spins)  GameState.addSpins(r.spins);
+        if (r.coins)  GameState.addCoins(r.coins);
+        if (r.shield) GameState.addShield();
+        if (r.chest)  GameState.addChest(r.chest);
+        burstParticles(this, W / 2, H * 0.52, [0xFFD700, 0xFF8C00, 0xFFFFFF], 22);
+        close();
+        this.updateHUD();
+      }));
+
+    this.time.delayedCall(10000, close);
   }
 
   // ─── RANK AWARD ───────────────────────────────────────────────────────────

@@ -32,6 +32,7 @@ export const GameState = {
   chests:    JSON.parse(localStorage.getItem('chests')    || '[]'),
   refillAt:       parseInt(localStorage.getItem('refillAt')       || '0'),
   passiveCoinsAt: parseInt(localStorage.getItem('passiveCoinsAt') || '0'),
+  village:        parseInt(localStorage.getItem('village')        || '1'),
 
   save() {
     localStorage.setItem('coins',    this.coins);
@@ -42,6 +43,13 @@ export const GameState = {
     localStorage.setItem('chests',    JSON.stringify(this.chests));
     localStorage.setItem('refillAt',       this.refillAt);
     localStorage.setItem('passiveCoinsAt', this.passiveCoinsAt);
+    localStorage.setItem('village',        this.village);
+  },
+
+  nextVillage() {
+    this.village++;
+    this.buildings = [0, 0, 0, 0, 0, 0];
+    this.save();
   },
 
   addChest(type) {
