@@ -27,6 +27,7 @@ export const GameState = {
   shields:  parseInt(localStorage.getItem('shields')  || '0'),
   attacks:  parseInt(localStorage.getItem('attacks')  || '0'),
   buildings: JSON.parse(localStorage.getItem('buildings') || '[0,0,0,0,0,0]'),
+  chests:    JSON.parse(localStorage.getItem('chests')    || '[]'),
   refillAt: parseInt(localStorage.getItem('refillAt') || '0'),
 
   save() {
@@ -35,7 +36,20 @@ export const GameState = {
     localStorage.setItem('shields',  this.shields);
     localStorage.setItem('attacks',  this.attacks);
     localStorage.setItem('buildings', JSON.stringify(this.buildings));
+    localStorage.setItem('chests',    JSON.stringify(this.chests));
     localStorage.setItem('refillAt', this.refillAt);
+  },
+
+  addChest(type) {
+    const chest = { type, id: Date.now() };
+    this.chests.push(chest);
+    this.save();
+    return chest;
+  },
+
+  removeChest(id) {
+    this.chests = this.chests.filter(c => c.id !== id);
+    this.save();
   },
 
   // Call on game start and periodically — grants spins earned while away.

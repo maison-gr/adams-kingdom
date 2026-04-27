@@ -13,6 +13,7 @@ import {
   flyingCoins, burstParticles, goldRain,
   screenShake, shieldBubble,
 } from '../effects/juice.js';
+import { CHEST_DEFS, randomChestType } from './ChestSystem.js';
 
 export class RewardSystem {
   constructor(scene) {
@@ -59,6 +60,21 @@ export class RewardSystem {
         target:   this.scene._raidTarget,
         deviceId: GameState.deviceId,
       });
+    });
+  }
+
+  _on_chest(_segment) {
+    const type  = randomChestType();
+    const chest = GameState.addChest(type);
+    const def   = CHEST_DEFS[type];
+    const col   = `#${def.lidColor.toString(16).padStart(6, '0')}`;
+
+    this._toast(`${def.label}!`, col);
+    this._flashScreen(def.lidColor, 0.14, 350);
+
+    this.scene.time.delayedCall(900, () => {
+      this.scene.scene.sleep('GameScene');
+      this.scene.scene.launch('ChestScene', { chestId: chest.id, chestType: type });
     });
   }
 

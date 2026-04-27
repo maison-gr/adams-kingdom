@@ -15,7 +15,7 @@ const SEGMENTS = [
   { label: 'ATTACK', color: 0xD35400, light: 0xFFA040, type: 'attack', value: 0    },
   { label: '500',    color: 0x1A8A4A, light: 0x55DD88, type: 'coins',  value: 500  },
   { label: 'SHIELD', color: 0x1A5276, light: 0x5DADE2, type: 'shield', value: 0    },
-  { label: '50',     color: 0x6C3483, light: 0xBB66FF, type: 'coins',  value: 50   },
+  { label: 'CHEST',  color: 0x1A5C4A, light: 0x1ABC9C, type: 'chest',  value: 0    },
   { label: 'SPIN+1', color: 0x0E6655, light: 0x40D9B0, type: 'spin',   value: 1    },
   { label: '1000',   color: 0x9A7D0A, light: 0xFFD700, type: 'coins',  value: 1000 },
   { label: 'RAID',   color: 0x1A6B5A, light: 0x1ABC9C, type: 'raid',   value: 0    },
@@ -46,6 +46,7 @@ export class GameScene extends Phaser.Scene {
     GameState.checkRefill();
     this._raidTarget  = null;
     syncPlayer(GameState);
+    this.events.on('wake', () => this.updateHUD());
     // Re-sync every 60 s
     this.time.addEvent({ delay: 60000, loop: true, callback: () => syncPlayer(GameState) });
 
@@ -306,6 +307,35 @@ export class GameScene extends Phaser.Scene {
     this.spinsText = this.add.text(W * 0.83, 45, `${GameState.spins}`, {
       fontSize: '18px', fontFamily: 'Arial Black', color: '#2ECC71',
     }).setOrigin(0.5);
+
+    // Chest inventory badge — appears below HUD when chests are waiting
+    this._chestBadgeBg = this.add.graphics().setDepth(1);
+    this.chestBadgeText = this.add.text(W / 2, 96, '', {
+      fontSize: '11px', fontFamily: 'Arial Black',
+      color: '#1ABC9C', stroke: '#000', strokeThickness: 2,
+    }).setOrigin(0.5).setDepth(2);
+
+    const badgeHit = this.add.zone(W / 2, 96, 200, 22).setDepth(3).setInteractive({ useHandCursor: true });
+    badgeHit.on('pointerdown', () => {
+      if (GameState.chests.length === 0) return;
+      const chest = GameState.chests[0];
+      this.scene.sleep('GameScene');
+      this.scene.launch('ChestScene', { chestId: chest.id, chestType: chest.type });
+    });
+
+    this._refreshChestBadge(W);
+  }
+
+  _refreshChestBadge(W = this.scale.width) {
+    const n = GameState.chests.length;
+    this._chestBadgeBg.clear();
+    if (n === 0) { this.chestBadgeText.setText(''); return; }
+
+    this._chestBadgeBg.fillStyle(0x1ABC9C, 0.18);
+    this._chestBadgeBg.fillRoundedRect(W / 2 - 90, 85, 180, 22, 11);
+    this._chestBadgeBg.lineStyle(1.5, 0x1ABC9C, 0.6);
+    this._chestBadgeBg.strokeRoundedRect(W / 2 - 90, 85, 180, 22, 11);
+    this.chestBadgeText.setText(`🎁  ${n} chest${n > 1 ? 's' : ''} — tap to open!`);
   }
 
   // ─── SPIN BUTTON ───────────────────────────────────────────────────────────
@@ -678,6 +708,7 @@ export class GameScene extends Phaser.Scene {
     this.spinsText.setText(`${GameState.spins}`);
     this.shieldText.setText(`${GameState.shields}`);
     this.setWatchAdVisible(GameState.spins === 0);
+    this._refreshChestBadge();
 
     // Coin value bounce
     this.tweens.killTweensOf(this.coinsText);
