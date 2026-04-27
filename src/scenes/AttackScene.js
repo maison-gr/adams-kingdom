@@ -27,9 +27,10 @@ export class AttackScene extends Phaser.Scene {
     this._buildHUD(W, H);
     this._buildReturnButton(W, H);
 
-    // Animate in: slide from bottom
-    this.cameras.main.setAlpha(0);
-    this.tweens.add({ targets: this.cameras.main, alpha: 1, duration: 320 });
+    // Animate in: zoom out from close-up
+    this.cameras.main.setZoom(2.0);
+    this.tweens.add({ targets: this.cameras.main, alpha: 1, duration: 180 });
+    this.cameras.main.zoomTo(1.0, 650, 'Cubic.easeOut');
   }
 
   // ── Background ───────────────────────────────────────────────────────────────

@@ -95,8 +95,12 @@ export class RewardSystem {
     this._flashScreen(def.lidColor, 0.14, 350);
 
     this.scene.time.delayedCall(900, () => {
-      this.scene.scene.sleep('GameScene');
-      this.scene.scene.launch('ChestScene', { chestId: chest.id, chestType: type });
+      this.scene.cameras.main.zoomTo(1.6, 280, 'Cubic.easeIn', false, (_cam, progress) => {
+        if (progress === 1) {
+          this.scene.scene.sleep('GameScene');
+          this.scene.scene.launch('ChestScene', { chestId: chest.id, chestType: type });
+        }
+      });
     });
   }
 
@@ -109,10 +113,14 @@ export class RewardSystem {
     this._flashScreen(0x1ABC9C, 0.18, 380);
 
     this.scene.time.delayedCall(900, () => {
-      this.scene.scene.sleep('GameScene');
-      this.scene.scene.launch('RaidScene', {
-        target:   this.scene._raidTarget,
-        deviceId: GameState.deviceId,
+      this.scene.cameras.main.zoomTo(1.6, 280, 'Cubic.easeIn', false, (_cam, progress) => {
+        if (progress === 1) {
+          this.scene.scene.sleep('GameScene');
+          this.scene.scene.launch('RaidScene', {
+            target:   this.scene._raidTarget,
+            deviceId: GameState.deviceId,
+          });
+        }
       });
     });
   }

@@ -66,6 +66,12 @@ export class GameScene extends Phaser.Scene {
     this._raidTarget  = null;
     syncPlayer(GameState);
     this.events.on('wake', () => {
+      // Zoom-out return effect (arriving back from any sub-scene)
+      this.cameras.main.setZoom(2.0);
+      this.cameras.main.zoomTo(1.0, 600, 'Cubic.easeOut');
+      // Reset any spin overlay that might have been left mid-spin
+      this.tweens.killTweensOf(this._dimOverlay);
+      if (this._dimOverlay) this._dimOverlay.setAlpha(0);
       this.updateHUD();
       this._refreshMissionBadge();
       if (GameState.buildings.every(lvl => lvl >= 3)) this._showVillageComplete();
@@ -95,6 +101,15 @@ export class GameScene extends Phaser.Scene {
     this.drawWatchAdArea(W, H);
     this.drawResultText(W, H);
     this.animateStars();
+
+    // Reusable overlay objects — create once at top depth, alpha 0
+    this._dimOverlay   = this.add.rectangle(W / 2, H / 2, W, H, 0x000000, 0).setDepth(8);
+    this._flashOverlay = this.add.rectangle(W / 2, H / 2, W, H, 0xFFFFFF, 0).setDepth(47);
+    this._feverTint    = this.add.rectangle(W / 2, H / 2, W, H, 0xFF6600, 0)
+      .setDepth(2).setBlendMode(Phaser.BlendModes.ADD);
+
+    this._playOpeningSequence();
+    this._startChimneySmoke(W);
     this._showFirstTimeTutorial(W, H);
   }
 
@@ -223,13 +238,32 @@ export class GameScene extends Phaser.Scene {
     ground.fillStyle(0xAA9880, 0.28);
     ground.fillRect(0, pathY, W, 2);
 
-    // ── Buildings ─────────────────────────────────────────────────────────────
+    // ── Buildings — pop in left→right on scene open ───────────────────────────
     this.buildingGraphics = [];
     for (let i = 0; i < 6; i++) {
       const x = (W / 7) * (i + 1);
-      const g = this.add.graphics();
+      const g = this.add.graphics().setAlpha(0);
+      g.y = 22;
       drawBuilding(g, x, groundY, i, GameState.buildings[i]);
       this.buildingGraphics.push({ g, x, groundY, index: i });
+      this.tweens.add({
+        targets: g, alpha: 1, y: 0,
+        duration: 360, delay: 280 + i * 65, ease: 'Back.easeOut',
+      });
+    }
+
+    // Ambient warm glow behind each building (ADD blend — free bloom)
+    for (let i = 0; i < 6; i++) {
+      const x   = (W / 7) * (i + 1);
+      const glow = this.add.circle(x, groundY - 36, 30, 0xFFBB44, 0)
+        .setDepth(1)
+        .setBlendMode(Phaser.BlendModes.ADD);
+      this.tweens.add({
+        targets: glow, alpha: 0.09,
+        duration: 2000 + i * 280,
+        yoyo: true, repeat: -1, ease: 'Sine.easeInOut',
+        delay: 900 + i * 360,
+      });
     }
 
     // ── Bushes between buildings ───────────────────────────────────────────────
@@ -799,6 +833,11 @@ export class GameScene extends Phaser.Scene {
     this._outcomePending = true;
     this.spinBtnText.setText('...');
 
+    // Spin cinematic: dim world + zoom in on wheel
+    this.tweens.killTweensOf(this._dimOverlay);
+    this.tweens.add({ targets: this._dimOverlay, alpha: 0.28, duration: 220 });
+    this.cameras.main.zoomTo(1.07, 240, 'Sine.easeIn');
+
     // Tick audio during spin
     this._spinTickTimer = this.time.addEvent({
       delay: 80, loop: true,
@@ -828,6 +867,12 @@ export class GameScene extends Phaser.Scene {
     this._spinTickTimer = null;
 
     const { width: W, height: H } = this.scale;
+
+    // Restore spin cinematic (dim + zoom snap back)
+    this.tweens.killTweensOf(this._dimOverlay);
+    this.tweens.add({ targets: this._dimOverlay, alpha: 0, duration: 380 });
+    this.cameras.main.zoomTo(1.0, 440, 'Back.easeOut');
+
     burstParticles(this, this.wheelCx, this.wheelCy - this.wheelR,
       [segment.color, segment.light, 0xFFFFFF], 14);
 
@@ -837,6 +882,8 @@ export class GameScene extends Phaser.Scene {
       nearMissFlash(this, W, H);
     } else {
       audioSystem.wheelStop();
+      // Light landing shake on normal stops
+      this.cameras.main.shake(200, 0.007);
     }
 
     this.time.delayedCall(nearMiss ? 1900 : 180, () => {
@@ -881,6 +928,12 @@ export class GameScene extends Phaser.Scene {
         yoyo: true, repeat: -1,
         duration: 580, ease: 'Sine.easeInOut',
       });
+      this.tweens.killTweensOf(this._feverTint);
+      this.tweens.add({ targets: this._feverTint, alpha: 0.08, duration: 450 });
+      this._feverTintPulse = this.tweens.add({
+        targets: this._feverTint, alpha: 0.04,
+        duration: 900, yoyo: true, repeat: -1, ease: 'Sine.easeInOut', delay: 500,
+      });
     } else if (result.feverEnded) {
       feverEnd(this, W, H);
       this.tweens.killTweensOf(this.feverRing);
@@ -888,6 +941,10 @@ export class GameScene extends Phaser.Scene {
         targets: this.feverRing,
         alpha: 0, duration: 600, ease: 'Power2',
       });
+      this._feverTintPulse?.stop();
+      this._feverTintPulse = null;
+      this.tweens.killTweensOf(this._feverTint);
+      this.tweens.add({ targets: this._feverTint, alpha: 0, duration: 650 });
     } else if (result.streakBroken && this.comboText) {
       this.tweens.add({
         targets: [this.comboText, this.feverCountText],
@@ -941,12 +998,13 @@ export class GameScene extends Phaser.Scene {
       .setColor(color)
       .setAlpha(1)
       .setPosition(this.scale.width / 2, this.scale.height * 0.73)
-      .setScale(1.4);
+      .setScale(2.2);
 
+    // Slam-in from oversized → normal (feels like it LANDS)
     this.tweens.add({
       targets: this.resultText,
       scaleX: 1, scaleY: 1,
-      duration: 220, ease: 'Back.easeOut',
+      duration: 190, ease: 'Back.easeOut',
     });
     this.tweens.add({
       targets: this.resultText,
@@ -1294,10 +1352,14 @@ export class GameScene extends Phaser.Scene {
         close();
         if (tgt.revenge && tgt.rivalRef) this.rivalSystem.clearRevenge(tgt.rivalRef.name);
         if (tgt.isRival && tgt.rivalRef)  this.rivalSystem.onAttacked(tgt.rivalRef.name);
-        this.scene.sleep('GameScene');
-        this.scene.launch('AttackScene', {
-          target:   { name: tgt.name, buildings: tgt.buildings, _id: tgt._id || null },
-          deviceId: GameState.deviceId,
+        this.cameras.main.zoomTo(1.5, 320, 'Cubic.easeIn', false, (_cam, progress) => {
+          if (progress === 1) {
+            this.scene.sleep('GameScene');
+            this.scene.launch('AttackScene', {
+              target:   { name: tgt.name, buildings: tgt.buildings, _id: tgt._id || null },
+              deviceId: GameState.deviceId,
+            });
+          }
         });
       });
     });
@@ -1573,7 +1635,7 @@ export class GameScene extends Phaser.Scene {
     track(this.add.rectangle(W / 2, H / 2, W, H, 0x000000, 0.84).setDepth(D));
 
     const cY = H * 0.26;
-    const cH = 318;
+    const cH = 378;
     const bg = track(this.add.graphics().setDepth(D));
     bg.fillStyle(0x05051E, 0.97);
     bg.fillRoundedRect(20, cY, W - 40, cH, 16);
@@ -1637,15 +1699,43 @@ export class GameScene extends Phaser.Scene {
       color: '#FFFFFF', stroke: '#5C3D00', strokeThickness: 4,
     }).setOrigin(0.5).setDepth(D + 2));
 
+    const claimReward = () => {
+      const r = bonusInfo.reward;
+      if (r.spins)  GameState.addSpins(r.spins);
+      if (r.coins)  GameState.addCoins(r.coins);
+      if (r.shield) GameState.addShield();
+      if (r.chest)  GameState.addChest(r.chest);
+      burstParticles(this, W / 2, H * 0.52, [0xFFD700, 0xFF8C00, 0xFFFFFF], 22);
+      close();
+      this.updateHUD();
+    };
+
     track(this.add.rectangle(W / 2, btnY, 200, 44, 0, 0)
       .setInteractive({ useHandCursor: true }).setDepth(D + 3)
+      .on('pointerdown', claimReward));
+
+    // "Double It" ad button
+    const adY  = btnY + 56;
+    const adG  = track(this.add.graphics().setDepth(D + 1));
+    adG.fillStyle(0x004400, 1); adG.fillRoundedRect(W / 2 - 94, adY - 18, 188, 36, 9);
+    adG.fillStyle(0x22AA44, 1); adG.fillRoundedRect(W / 2 - 94, adY - 18, 188, 24, 9);
+    adG.lineStyle(1.5, 0x44FF88, 0.70); adG.strokeRoundedRect(W / 2 - 94, adY - 18, 188, 36, 9);
+
+    track(this.add.text(W / 2, adY, '📺  Watch Ad → Double It!', {
+      fontSize: '12px', fontFamily: 'Arial Black',
+      color: '#CCFFCC', stroke: '#000000', strokeThickness: 2,
+    }).setOrigin(0.5).setDepth(D + 2));
+
+    track(this.add.rectangle(W / 2, adY, 188, 36, 0, 0)
+      .setInteractive({ useHandCursor: true }).setDepth(D + 3)
       .on('pointerdown', () => {
+        // Simulated ad — double the reward on completion
         const r = bonusInfo.reward;
-        if (r.spins)  GameState.addSpins(r.spins);
-        if (r.coins)  GameState.addCoins(r.coins);
-        if (r.shield) GameState.addShield();
-        if (r.chest)  GameState.addChest(r.chest);
-        burstParticles(this, W / 2, H * 0.52, [0xFFD700, 0xFF8C00, 0xFFFFFF], 22);
+        if (r.spins)  GameState.addSpins(r.spins * 2);
+        if (r.coins)  GameState.addCoins(r.coins * 2);
+        if (r.shield) { GameState.addShield(); GameState.addShield(); }
+        if (r.chest)  { GameState.addChest(r.chest); GameState.addChest(r.chest); }
+        burstParticles(this, W / 2, H * 0.48, [0x44FF88, 0xFFD700, 0xFFFFFF], 32);
         close();
         this.updateHUD();
       }));
@@ -1690,6 +1780,59 @@ export class GameScene extends Phaser.Scene {
     const result = this.rankSystem.award(action, mult);
     this.updateXPBar();
     if (result?.rankUp) this._showRankUpOverlay(result.def);
+  }
+
+  // ─── OPENING SEQUENCE ────────────────────────────────────────────────────
+
+  _playOpeningSequence() {
+    this.cameras.main.setZoom(1.5);
+    this.cameras.main.zoomTo(1.0, 700, 'Cubic.easeOut');
+  }
+
+  // ─── SCREEN FLASH HELPER ─────────────────────────────────────────────────
+
+  _flash(color, alpha, duration) {
+    const { width: W, height: H } = this.scale;
+    this._flashOverlay.setFillStyle(color, alpha).setAlpha(alpha);
+    this.tweens.killTweensOf(this._flashOverlay);
+    this.tweens.add({ targets: this._flashOverlay, alpha: 0, duration });
+  }
+
+  // ─── CHIMNEY SMOKE ────────────────────────────────────────────────────────
+
+  _startChimneySmoke(W) {
+    const smokePositions = [
+      W * 0.20,
+      W * 0.50,
+      W * 0.80,
+    ];
+
+    this.time.addEvent({
+      delay: 1800,
+      loop: true,
+      callback: () => {
+        if (!this.buildingGraphics?.length) return;
+        const pos = smokePositions[Phaser.Math.Between(0, smokePositions.length - 1)];
+        const groundY = this.scale.height * 0.72;
+        const puff = this.add.circle(
+          pos + Phaser.Math.Between(-6, 6),
+          groundY - 48,
+          Phaser.Math.Between(4, 8),
+          0xCCCCCC,
+          0.32,
+        ).setDepth(1);
+
+        this.tweens.add({
+          targets: puff,
+          y: puff.y - Phaser.Math.Between(28, 48),
+          alpha: 0,
+          scaleX: 2.2, scaleY: 2.2,
+          duration: Phaser.Math.Between(1200, 1800),
+          ease: 'Sine.easeOut',
+          onComplete: () => puff.destroy(),
+        });
+      },
+    });
   }
 
   // ─── HUD UPDATE ────────────────────────────────────────────────────────────

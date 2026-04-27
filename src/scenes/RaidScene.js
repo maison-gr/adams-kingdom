@@ -38,8 +38,12 @@ export class RaidScene extends Phaser.Scene {
     this._buildHUD(W, H);
     this._buildReturnButton(W, H);
 
-    this.cameras.main.setAlpha(0);
-    this.tweens.add({ targets: this.cameras.main, alpha: 1, duration: 300 });
+    // Animate in: zoom out from above
+    this.cameras.main.setZoom(2.0);
+    this.cameras.main.setScrollY(-60);
+    this.tweens.add({ targets: this.cameras.main, alpha: 1, duration: 180 });
+    this.cameras.main.zoomTo(1.0, 700, 'Cubic.easeOut');
+    this.tweens.add({ targets: this.cameras.main, scrollY: 0, duration: 600, ease: 'Cubic.easeOut' });
   }
 
   // ── Background ────────────────────────────────────────────────────────────
