@@ -186,7 +186,7 @@ export class AttackScene extends Phaser.Scene {
     }
 
     // Fire-and-forget API calls
-    const targetId = this.target?.id;
+    const targetId = this.target?._id;
     if (targetId) {
       recordAttack(targetId, index, stolen).catch(() => {});
     }

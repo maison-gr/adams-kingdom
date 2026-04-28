@@ -3,6 +3,22 @@ import Player from '../models/Player.js';
 
 const router = Router();
 
+// Dummy bot players — fill empty leaderboard slots until real players accumulate.
+// Bots are never stored in DB; they're injected at query time and displaced as
+// real players surpass their coin totals.
+const BOTS = [
+  { name: 'EmperorAsh',   coins: 48200, buildings: [3,3,3,3,3,2], _bot: true },
+  { name: 'StormQueen',   coins: 35600, buildings: [3,3,3,3,2,1], _bot: true },
+  { name: 'IronKingdom',  coins: 27800, buildings: [3,3,3,2,2,1], _bot: true },
+  { name: 'GoldCrusader', coins: 21400, buildings: [3,3,2,2,2,1], _bot: true },
+  { name: 'NightBaron',   coins: 15700, buildings: [3,3,2,2,1,1], _bot: true },
+  { name: 'CrystalDuke',  coins: 11200, buildings: [3,2,2,2,1,0], _bot: true },
+  { name: 'ShadowKnight', coins:  8400, buildings: [3,2,2,1,1,0], _bot: true },
+  { name: 'WildPeasant',  coins:  5600, buildings: [2,2,1,1,1,0], _bot: true },
+  { name: 'BraveSmith',   coins:  3200, buildings: [2,1,1,1,0,0], _bot: true },
+  { name: 'YoungFarmer',  coins:  1800, buildings: [1,1,1,0,0,0], _bot: true },
+];
+
 // ── Sync player state (upsert) ───────────────────────────────────────────────
 router.post('/sync', async (req, res) => {
   const { deviceId, name, coins, spins, shields, buildings, attacks } = req.body;
@@ -61,16 +77,25 @@ router.post('/attack/:targetId', async (req, res) => {
   }
 });
 
-// ── Leaderboard (top 10 by coins) ────────────────────────────────────────────
+// ── Leaderboard (top 10 by coins, padded with bots) ──────────────────────────
 router.get('/leaderboard', async (req, res) => {
   try {
-    const top = await Player
+    const real = await Player
       .find()
       .sort({ coins: -1 })
       .limit(10)
       .select('name coins buildings')
       .lean();
-    res.json(top);
+
+    // Inject bots only for names not already taken by a real player
+    const realNames = new Set(real.map(p => p.name));
+    const filler    = BOTS.filter(b => !realNames.has(b.name));
+
+    const top10 = [...real, ...filler]
+      .sort((a, b) => b.coins - a.coins)
+      .slice(0, 10);
+
+    res.json(top10);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

@@ -46,6 +46,16 @@ export const GameState = {
     localStorage.setItem('village',        this.village);
   },
 
+  setPlayerName(name) {
+    this.playerName = name;
+    localStorage.setItem('playerName', name);
+  },
+
+  resetAll() {
+    localStorage.clear();
+    location.reload();
+  },
+
   nextVillage() {
     this.village++;
     this.buildings = [0, 0, 0, 0, 0, 0];

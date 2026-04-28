@@ -214,6 +214,62 @@ class AudioSystem {
     });
     this.haptic(15);
   }
+
+  // Rising whoosh at spin launch
+  spinLaunch() {
+    this._play(ctx => {
+      const t = ctx.currentTime;
+      this._sweep(ctx, 'sine',     80,  420, t,        t + 0.38, 0.22, 0.04);
+      this._sweep(ctx, 'triangle', 160, 880, t + 0.06, t + 0.32, 0.10, 0);
+    });
+    this.haptic(18);
+  }
+
+  // ─── BACKGROUND MUSIC ────────────────────────────────────────────────────
+
+  // Looping pentatonic arpeggio — no audio files required.
+  startBGM() {
+    if (this._bgmTimer) return;
+    const notes  = [261.63, 329.63, 392, 523.25, 659.25]; // C pentatonic
+    const drone  = 65.41;                                  // C2 bass
+    let   step   = 0;
+    const BEAT   = 0.32;
+
+    const tick = () => {
+      if (this._muted || !this._bgmTimer) return;
+      const ctx = this._ctx_get();
+      if (!ctx) return;
+      const t = ctx.currentTime;
+
+      // Arpeggio note
+      const freq = notes[step % notes.length] * (step < notes.length ? 1 : 2);
+      this._osc(ctx, 'triangle', freq, t, t + BEAT * 0.7, 0.055, 0);
+
+      // Bass drone every 4 steps
+      if (step % 4 === 0) {
+        this._osc(ctx, 'sine', drone, t, t + BEAT * 3.5, 0.07, 0);
+      }
+
+      step = (step + 1) % (notes.length * 2);
+    };
+
+    tick();
+    this._bgmTimer = setInterval(tick, BEAT * 1000);
+  }
+
+  stopBGM() {
+    if (this._bgmTimer) { clearInterval(this._bgmTimer); this._bgmTimer = null; }
+  }
+
+  // Short cut-off bell ting — jackpot crossing the pointer
+  jackpotPassthrough() {
+    this._play(ctx => {
+      const t = ctx.currentTime;
+      this._osc(ctx, 'sine',     1568, t,        t + 0.11, 0.22, 0.05);
+      this._osc(ctx, 'triangle', 1318, t + 0.02, t + 0.09, 0.10, 0);
+    });
+    this.haptic(6);
+  }
 }
 
 export const audioSystem = new AudioSystem();

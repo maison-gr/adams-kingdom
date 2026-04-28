@@ -198,7 +198,7 @@ export class MissionsScene extends Phaser.Scene {
       const m   = Math.floor((ms % 3_600_000) / 60_000);
       const s   = Math.floor((ms % 60_000)    / 1_000);
       this._timerText?.setText(
-        `Resets in  ${h}h ${String(m).padStart(2, '0')}m ${String(s).padStart(2, '0')}s`
+        `Resets in ${h}h ${String(m).padStart(2, '0')}m ${String(s).padStart(2, '0')}s`
       );
     };
     tick();
@@ -212,17 +212,17 @@ export class MissionsScene extends Phaser.Scene {
     const by = H * 0.840;
 
     const g = this.add.graphics().setDepth(5);
-    g.fillStyle(0x0A2050, 1); g.fillRoundedRect(bx - 100, by - 24, 200, 48, 14);
-    g.fillStyle(0x1A4A9A, 1); g.fillRoundedRect(bx - 100, by - 24, 200, 34, 14);
-    g.fillStyle(0x2266CC, 0.40); g.fillRoundedRect(bx - 96, by - 20, 192, 16, 10);
-    g.lineStyle(2, 0xD4A017, 0.75); g.strokeRoundedRect(bx - 100, by - 24, 200, 48, 14);
+    g.fillStyle(0x0A2050, 1); g.fillRoundedRect(bx - 110, by - 24, 220, 48, 14);
+    g.fillStyle(0x1A4A9A, 1); g.fillRoundedRect(bx - 110, by - 24, 220, 34, 14);
+    g.fillStyle(0x2266CC, 0.40); g.fillRoundedRect(bx - 106, by - 20, 212, 16, 10);
+    g.lineStyle(2, 0xD4A017, 0.75); g.strokeRoundedRect(bx - 110, by - 24, 220, 48, 14);
 
     this.add.text(bx, by, '🃏  My Card Collection', {
-      fontSize: '17px', fontFamily: 'Arial Black',
+      fontSize: '15px', fontFamily: 'Arial Black',
       color: '#FFFFFF', stroke: '#0A2050', strokeThickness: 4,
     }).setOrigin(0.5).setDepth(6);
 
-    this.add.rectangle(bx, by, 200, 48, 0x000000, 0)
+    this.add.rectangle(bx, by, 220, 48, 0x000000, 0)
       .setInteractive({ useHandCursor: true })
       .setDepth(7)
       .on('pointerdown', () => {

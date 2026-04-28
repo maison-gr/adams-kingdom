@@ -14,22 +14,8 @@ import { RankSystem }    from '../systems/RankSystem.js';
 import { LoginStreak }  from '../systems/LoginStreak.js';
 import { drawBuilding, BUILDING_COLORS } from '../utils/buildingRenderer.js';
 import { audioSystem } from '../effects/AudioSystem.js';
-
-// ─── DATA ────────────────────────────────────────────────────────────────────
-
-// weight controls probability — higher = more frequent.
-// JACKPOT sits between SHIELD and CHEST so landing either triggers near-miss.
-const SEGMENTS = [
-  { label: '100',     color: 0xC0392B, light: 0xFF7070, type: 'coins',   value: 100,  weight: 10 },
-  { label: 'ATTACK',  color: 0xD35400, light: 0xFFA040, type: 'attack',  value: 0,    weight: 8  },
-  { label: '500',     color: 0x1A8A4A, light: 0x55DD88, type: 'coins',   value: 500,  weight: 9  },
-  { label: 'SHIELD',  color: 0x1A5276, light: 0x5DADE2, type: 'shield',  value: 0,    weight: 7  },
-  { label: 'JACKPOT', color: 0x5A3800, light: 0xFFD700, type: 'jackpot', value: 5000, weight: 1  },
-  { label: 'CHEST',   color: 0x1A5C4A, light: 0x1ABC9C, type: 'chest',   value: 0,    weight: 6  },
-  { label: 'SPIN+1',  color: 0x0E6655, light: 0x40D9B0, type: 'spin',    value: 1,    weight: 9  },
-  { label: '1000',    color: 0x9A7D0A, light: 0xFFD700, type: 'coins',   value: 1000, weight: 7  },
-  { label: 'RAID',    color: 0x1A6B5A, light: 0x1ABC9C, type: 'raid',    value: 0,    weight: 8  },
-];
+import { SEGMENTS }    from '../constants/segments.js';
+import { adService }   from '../services/AdService.js';
 
 const BUILDING_COSTS  = [500, 1500, 3000, 6000, 12000, 25000];
 const BUILDING_NAMES  = ['Farm', 'Mill', 'Barracks', 'Market', 'Castle', 'Palace'];
@@ -65,6 +51,8 @@ export class GameScene extends Phaser.Scene {
     const loginBonus    = new LoginStreak().check();
     this._raidTarget  = null;
     syncPlayer(GameState);
+    audioSystem.startBGM();
+    adService.init();
     this._villageCompleteShowing = false;
     this.events.on('wake', () => {
       // Smooth zoom-out from whatever state the camera was left in
@@ -115,6 +103,7 @@ export class GameScene extends Phaser.Scene {
     this._playOpeningSequence();
     this._startChimneySmoke();
     this._showFirstTimeTutorial(W, H);
+    this.time.delayedCall(3200, () => this._initLuckyBoost());
   }
 
   update() {
@@ -417,16 +406,39 @@ export class GameScene extends Phaser.Scene {
       // Label
       const lx        = cx + Math.cos(mid) * r * 0.72;
       const ly        = cy + Math.sin(mid) * r * 0.72;
-      const fz        = seg.label.length > 5 ? '11px' : '13px';
       const isJackpot = seg.type === 'jackpot';
       const lbl = this.add.text(lx, ly, seg.label, {
-        fontSize: fz,
+        fontSize: '10px',
         fontFamily: 'Arial Black',
         color: isJackpot ? '#FFD700' : '#FFFFFF',
         stroke: '#000000',
         strokeThickness: isJackpot ? 5 : 4,
+        align: 'center',
       }).setOrigin(0.5);
       this.wheelLabels.push(lbl);
+    }
+
+    // Star studs at each segment divider on outer rim
+    for (let i = 0; i < n; i++) {
+      const divAngle = rotation + i * slice - Math.PI / 2;
+      const sx = cx + Math.cos(divAngle) * (r - 6);
+      const sy = cy + Math.sin(divAngle) * (r - 6);
+      g.fillStyle(0xFFD700, 0.90);
+      g.fillCircle(sx, sy, 4);
+      g.fillStyle(0xFFFFFF, 0.60);
+      g.fillCircle(sx - 1, sy - 1, 1.5);
+    }
+
+    // Jackpot gold dust — 8 small glinting circles around jackpot segment
+    const jpIdx = SEGMENTS.findIndex(s => s.type === 'jackpot');
+    const jpMid  = rotation + jpIdx * slice - Math.PI / 2 + slice / 2;
+    for (let d = 0; d < 8; d++) {
+      const dustAngle = jpMid + (d / 8) * slice * 0.8 - slice * 0.4;
+      const dustR     = r * (0.55 + (d % 3) * 0.10);
+      const dx = cx + Math.cos(dustAngle) * dustR;
+      const dy = cy + Math.sin(dustAngle) * dustR;
+      g.fillStyle(0xFFD700, 0.55 + (d % 2) * 0.25);
+      g.fillCircle(dx, dy, 2.5 - (d % 3) * 0.5);
     }
 
     // Multi-layer golden glow border
@@ -512,7 +524,7 @@ export class GameScene extends Phaser.Scene {
 
     const xpInfo0 = this.rankSystem.isMaxRank
       ? `V.${GameState.village} · MAX`
-      : `V.${GameState.village}  ${this.rankSystem.xpIntoRank}/${this.rankSystem.xpForNextRank}`;
+      : `V.${GameState.village} · ${this.rankSystem.xpIntoRank}/${this.rankSystem.xpForNextRank}`;
     this._xpProgressText = this.add.text(W - 10, 89, xpInfo0, {
       fontSize: '9px', fontFamily: 'Arial Black', color: '#556677',
     }).setOrigin(1, 0.5).setDepth(2);
@@ -600,33 +612,24 @@ export class GameScene extends Phaser.Scene {
       this.scene.launch('ChestScene', { chestId: chest.id, chestType: chest.type });
     });
 
-    // Mute toggle — small speaker button below HUD right edge
-    const muteX = W - 24;
-    const muteY = 126;
-    this._muteBtnG    = this.add.graphics().setDepth(3);
-    this._muteBtnIcon = this.add.text(muteX, muteY, audioSystem.isMuted ? '🔇' : '🔊', {
-      fontSize: '14px',
-    }).setOrigin(0.5).setDepth(4);
-    this._drawMuteBtn(muteX, muteY);
-    this.add.circle(muteX, muteY, 20, 0x000000, 0)
+    // Settings gear button — bottom right corner
+    const setX = W - 32;
+    const setY = H - 32;
+    const setG = this.add.graphics().setDepth(3);
+    setG.fillStyle(0x111122, 0.82);
+    setG.fillCircle(setX, setY, 16);
+    setG.lineStyle(1.5, 0x334466, 0.70);
+    setG.strokeCircle(setX, setY, 16);
+    this.add.text(setX, setY, '⚙️', { fontSize: '14px' }).setOrigin(0.5).setDepth(4);
+    this.add.circle(setX, setY, 20, 0x000000, 0)
       .setInteractive({ useHandCursor: true })
       .setDepth(5)
       .on('pointerdown', () => {
-        const muted = audioSystem.toggleMute();
-        this._muteBtnIcon.setText(muted ? '🔇' : '🔊');
-        this._drawMuteBtn(muteX, muteY);
+        this.scene.sleep('GameScene');
+        this.scene.launch('SettingsScene');
       });
 
     this._refreshChestBadge(W);
-  }
-
-  _drawMuteBtn(x, y) {
-    const g = this._muteBtnG;
-    g.clear();
-    g.fillStyle(0x111122, 0.82);
-    g.fillCircle(x, y, 16);
-    g.lineStyle(1.5, audioSystem.isMuted ? 0x554455 : 0x334466, 0.70);
-    g.strokeCircle(x, y, 16);
   }
 
   _refreshChestBadge(W = this.scale.width) {
@@ -671,7 +674,7 @@ export class GameScene extends Phaser.Scene {
     this._rankTitleText?.setText(def.title).setColor(rColHex);
     const xpInfo = rs.isMaxRank
       ? `V.${GameState.village} · MAX`
-      : `V.${GameState.village}  ${rs.xpIntoRank}/${rs.xpForNextRank}`;
+      : `V.${GameState.village} · ${rs.xpIntoRank}/${rs.xpForNextRank}`;
     this._xpProgressText?.setText(xpInfo);
   }
 
@@ -757,28 +760,48 @@ export class GameScene extends Phaser.Scene {
     const bx = W / 2;
     const by = H * 0.93;
 
+    // Premium pill teaser
     this.adBtnBg = this.add.graphics();
-    this.adBtnBg.fillStyle(0x1A7A3A, 1);
-    this.adBtnBg.fillRoundedRect(bx - 125, by - 22, 250, 44, 14);
-    this.adBtnBg.fillStyle(0x27AE60, 1);
-    this.adBtnBg.fillRoundedRect(bx - 125, by - 22, 250, 28, 14);
-    this.adBtnBg.lineStyle(2, 0x2ECC71, 0.9);
-    this.adBtnBg.strokeRoundedRect(bx - 125, by - 22, 250, 44, 14);
+    this._drawAdPill(bx, by);
 
-    this.adBtnText = this.add.text(bx, by, 'Watch Ad  +5 Spins', {
-      fontSize: '17px', fontFamily: 'Arial Black',
-      color: '#FFFFFF', stroke: '#0A4A20', strokeThickness: 3,
+    this.adBtnText = this.add.text(bx + 12, by, '📺  Watch Ad  →  +5 Spins', {
+      fontSize: '15px', fontFamily: 'Arial Black',
+      color: '#FFFFFF', stroke: '#0A3A1A', strokeThickness: 3,
     }).setOrigin(0.5);
 
-    this.adBtnHit = this.add.rectangle(bx, by, 250, 44, 0x000000, 0)
+    this.adBtnHit = this.add.rectangle(bx, by, 260, 46, 0x000000, 0)
       .setInteractive({ useHandCursor: true });
-    this.adBtnHit.on('pointerdown', () => this.onWatchAd());
+    this.adBtnHit.on('pointerdown', () => this._openAdSheet(W, H));
 
     this.refillCountdown = this.add.text(bx, by + 30, '', {
       fontSize: '12px', fontFamily: 'Arial', color: '#888888',
     }).setOrigin(0.5);
 
+    // Gentle glow pulse on the pill
+    this.tweens.add({
+      targets: this.adBtnBg, alpha: 0.78,
+      yoyo: true, repeat: -1, duration: 1200, ease: 'Sine.easeInOut',
+    });
+
     this.setWatchAdVisible(GameState.spins === 0);
+  }
+
+  _drawAdPill(bx, by) {
+    const g = this.adBtnBg;
+    g.clear();
+    g.fillStyle(0x0A2A14, 1);
+    g.fillRoundedRect(bx - 130, by - 23, 260, 46, 16);
+    g.fillStyle(0x1A7A3A, 1);
+    g.fillRoundedRect(bx - 130, by - 23, 260, 32, 16);
+    g.fillStyle(0x2ECC71, 0.18);
+    g.fillRoundedRect(bx - 126, by - 20, 252, 14, 10);
+    g.lineStyle(2, 0x2ECC71, 0.95);
+    g.strokeRoundedRect(bx - 130, by - 23, 260, 46, 16);
+    // Live-dot
+    g.fillStyle(0x00FF7F, 1);
+    g.fillCircle(bx - 100, by, 5);
+    g.fillStyle(0xFFFFFF, 0.55);
+    g.fillCircle(bx - 101, by - 1, 2);
   }
 
   setWatchAdVisible(visible) {
@@ -789,17 +812,97 @@ export class GameScene extends Phaser.Scene {
     else this.adBtnHit.disableInteractive();
   }
 
-  onWatchAd() {
-    this.adBtnHit.disableInteractive();
-    this.adBtnText.setText('Watching...');
-    this.refillCountdown.setText('');
-    this.time.delayedCall(2500, () => {
-      GameState.addSpins(5);
-      this.adBtnText.setText('Watch Ad  +5 Spins');
-      this.updateHUD();
-      this.showResult('+5 Spins!', '#2ECC71');
+  _openAdSheet(W, H) {
+    const D       = 35;
+    const sheetH  = 268;
+    const objs    = [];
+    const track   = o => { objs.push(o); return o; };
+    const slideBy = sheetH + 10;
+
+    // Backdrop
+    const dim = track(this.add.rectangle(W / 2, H / 2, W, H, 0x000000, 0)
+      .setDepth(D).setInteractive());
+    this.tweens.add({ targets: dim, alpha: 0.60, duration: 220 });
+
+    // Sheet panel — starts below viewport
+    const sheet = track(this.add.graphics().setDepth(D + 1).setY(H + 10));
+    sheet.fillStyle(0x05051E, 0.98);
+    sheet.fillRoundedRect(0, 0, W, sheetH, { tl: 22, tr: 22, bl: 0, br: 0 });
+    sheet.fillStyle(0x2ECC71, 0.06);
+    sheet.fillRoundedRect(0, 0, W, 50, { tl: 22, tr: 22, bl: 0, br: 0 });
+    sheet.lineStyle(2.5, 0x2ECC71, 0.65);
+    sheet.strokeRoundedRect(0, 0, W, sheetH, { tl: 22, tr: 22, bl: 0, br: 0 });
+
+    const makeAt = (y, fn) => {
+      const o = fn(H + 10 + y);
+      return track(o);
+    };
+
+    const icon    = makeAt(44,  y => this.add.text(W / 2, y, '📺', { fontSize: '46px' }).setOrigin(0.5).setDepth(D + 2));
+    const heading = makeAt(100, y => this.add.text(W / 2, y, '+5 FREE SPINS', {
+      fontSize: '26px', fontFamily: 'Arial Black',
+      color: '#2ECC71', stroke: '#000000', strokeThickness: 5,
+    }).setOrigin(0.5).setDepth(D + 2));
+    const sub     = makeAt(132, y => this.add.text(W / 2, y, 'Watch a short ad to earn 5 bonus spins', {
+      fontSize: '13px', fontFamily: 'Arial', color: '#778899',
+      align: 'center', wordWrap: { width: W - 60 },
+    }).setOrigin(0.5).setDepth(D + 2));
+
+    const btnTop = H + 10 + 158;
+    const adBg = track(this.add.graphics().setDepth(D + 2));
+    adBg.fillStyle(0x1A6A2A, 1); adBg.fillRoundedRect(W / 2 - 120, btnTop, 240, 52, 14);
+    adBg.fillStyle(0x27AE60, 1); adBg.fillRoundedRect(W / 2 - 120, btnTop, 240, 36, 14);
+    adBg.fillStyle(0xFFFFFF, 0.10); adBg.fillRoundedRect(W / 2 - 116, btnTop + 2, 232, 14, 10);
+    adBg.lineStyle(2, 0x2ECC71, 0.90); adBg.strokeRoundedRect(W / 2 - 120, btnTop, 240, 52, 14);
+
+    const btnTxt = makeAt(184, y => this.add.text(W / 2, y, '▶  WATCH NOW', {
+      fontSize: '17px', fontFamily: 'Arial Black',
+      color: '#FFFFFF', stroke: '#0A3A1A', strokeThickness: 3,
+    }).setOrigin(0.5).setDepth(D + 3));
+
+    const skipTxt = makeAt(232, y => this.add.text(W / 2, y, 'No thanks', {
+      fontSize: '12px', fontFamily: 'Arial', color: '#445566',
+    }).setOrigin(0.5).setDepth(D + 3));
+
+    // Slide all up
+    objs.forEach(o => {
+      if (o !== dim) this.tweens.add({ targets: o, y: o.y - slideBy, duration: 380, ease: 'Back.easeOut' });
     });
+
+    const dismiss = () => {
+      this.tweens.add({
+        targets: objs, alpha: 0, duration: 200,
+        onComplete: () => objs.forEach(o => o.destroy()),
+      });
+    };
+
+    // Hit zones (also slide up)
+    const btnHit = track(this.add.rectangle(W / 2, H + 10 + 184, 240, 52, 0, 0)
+      .setDepth(D + 4).setInteractive({ useHandCursor: true }));
+    this.tweens.add({ targets: btnHit, y: btnHit.y - slideBy, duration: 380, ease: 'Back.easeOut' });
+
+    const skipHit = track(this.add.rectangle(W / 2, H + 10 + 232, 140, 28, 0, 0)
+      .setDepth(D + 4).setInteractive({ useHandCursor: true }));
+    this.tweens.add({ targets: skipHit, y: skipHit.y - slideBy, duration: 380, ease: 'Back.easeOut' });
+
+    btnHit.on('pointerdown', () => {
+      btnHit.disableInteractive();
+      skipHit.disableInteractive();
+      btnTxt.setText('Loading...');
+      this.time.delayedCall(2500, () => {
+        GameState.addSpins(5);
+        this.updateHUD();
+        this.showResult('+5 Spins!', '#2ECC71');
+        this.setWatchAdVisible(false);
+        dismiss();
+      });
+    });
+
+    skipHit.on('pointerdown', dismiss);
+    dim.on('pointerdown', dismiss);
   }
+
+  onWatchAd() { this._openAdSheet(this.scale.width, this.scale.height); }
 
   // ─── BUILD BUTTONS ─────────────────────────────────────────────────────────
 
@@ -836,6 +939,7 @@ export class GameScene extends Phaser.Scene {
     this._dismissTutorial();
     this._outcomePending = true;
     this.spinBtnText.setText('...');
+    audioSystem.spinLaunch();
 
     // Spin cinematic: dim world + zoom in on wheel
     this.tweens.killTweensOf(this._dimOverlay);
@@ -855,7 +959,18 @@ export class GameScene extends Phaser.Scene {
     const targetIndex = this.spinSystem.spin(
       this,
       angle => { this.wheelAngle = angle; this.drawWheelGraphics(angle); },
-      (segment, idx) => this._onWheelStopped(segment, idx)
+      (segment, idx) => this._onWheelStopped(segment, idx),
+      {
+        onSlowdown: () => {
+          // Phase 4: wheel crawling — tighten tick interval for suspense
+          this._spinTickTimer?.remove();
+          this._spinTickTimer = this.time.addEvent({
+            delay: 38, loop: true,
+            callback: () => audioSystem.tick(),
+          });
+        },
+        onNearMissPassthrough: () => this._onJackpotPassthrough(),
+      }
     );
 
     // Pre-fetch raid target the moment the spin starts (gives 4s head-start)
@@ -880,14 +995,17 @@ export class GameScene extends Phaser.Scene {
     burstParticles(this, this.wheelCx, this.wheelCy - this.wheelR,
       [segment.color, segment.light, 0xFFFFFF], 14);
 
-    const nearMiss = this._isNearMiss(targetIndex);
+    const nearMiss  = this._isNearMiss(targetIndex);
+    const nearMiss2 = !nearMiss && this._isNearMiss2(targetIndex);
+
     if (nearMiss) {
       audioSystem.nearMiss();
       nearMissFlash(this, W, H);
+      this.time.delayedCall(700, () => this._showTryAgainPrompt(W, H));
     } else {
       audioSystem.wheelStop();
-      // Light landing shake on normal stops
       this.cameras.main.shake(200, 0.007);
+      if (nearMiss2) this._pulseNearMiss2Tease();
     }
 
     this.time.delayedCall(nearMiss ? 1900 : 180, () => {
@@ -913,6 +1031,121 @@ export class GameScene extends Phaser.Scene {
     const prev = (jIdx - 1 + n) % n;
     const next = (jIdx + 1) % n;
     return targetIndex === prev || targetIndex === next;
+  }
+
+  // ±2 distance from jackpot — softer tease, no delay to outcome
+  _isNearMiss2(targetIndex) {
+    if (SEGMENTS[targetIndex].type === 'jackpot') return false;
+    const n    = SEGMENTS.length;
+    const jIdx = SEGMENTS.findIndex(s => s.type === 'jackpot');
+    const dist = Math.min(
+      Math.abs(targetIndex - jIdx),
+      n - Math.abs(targetIndex - jIdx)
+    );
+    return dist === 2;
+  }
+
+  _pulseNearMiss2Tease() {
+    const cx = this.wheelCx;
+    const cy = this.wheelCy;
+    const r  = this.wheelR;
+    const g  = this.add.graphics().setDepth(20).setAlpha(0);
+    g.lineStyle(5, 0xFFD700, 0.80);
+    g.strokeCircle(cx, cy, r + 6);
+    g.lineStyle(2, 0xFFFF88, 0.50);
+    g.strokeCircle(cx, cy, r + 12);
+
+    this.tweens.add({
+      targets: g, alpha: 1,
+      duration: 180, ease: 'Power2',
+      yoyo: true, repeat: 2,
+      onComplete: () => g.destroy(),
+    });
+  }
+
+  // Jackpot segment crossing the pointer during slowdown — ting + gold flash
+  _onJackpotPassthrough() {
+    audioSystem.jackpotPassthrough();
+    const cx = this.wheelCx;
+    const cy = this.wheelCy;
+    const r  = this.wheelR;
+    const g  = this.add.graphics().setDepth(22).setAlpha(0);
+    g.lineStyle(8, 0xFFD700, 0.90);
+    g.strokeCircle(cx, cy, r + 4);
+    g.lineStyle(3, 0xFFFFAA, 0.60);
+    g.strokeCircle(cx, cy, r + 14);
+
+    this.tweens.add({
+      targets: g, alpha: 1,
+      duration: 80, ease: 'Power2',
+      yoyo: true,
+      onComplete: () => g.destroy(),
+    });
+  }
+
+  // "Try Again?" panel — shown 700ms after a ±1 near-miss
+  _showTryAgainPrompt(W, H) {
+    if (this.spinSystem.isSpinning) return;
+    const D    = 55;
+    const panY = H * 0.60;
+    const objs = [];
+    const track = o => { objs.push(o); return o; };
+
+    const dismiss = () => {
+      this.tweens.add({
+        targets: objs, alpha: 0, duration: 200,
+        onComplete: () => objs.forEach(o => o.destroy()),
+      });
+    };
+
+    const panel = track(this.add.graphics().setDepth(D).setAlpha(0));
+    panel.fillStyle(0x0A0A2A, 0.95);
+    panel.fillRoundedRect(W / 2 - 140, panY, 280, 126, 16);
+    panel.lineStyle(2, 0xFF4400, 0.60);
+    panel.strokeRoundedRect(W / 2 - 140, panY, 280, 126, 16);
+    this.tweens.add({ targets: panel, alpha: 1, duration: 240 });
+
+    const lbl = track(this.add.text(W / 2, panY + 24, 'So close! Try again?', {
+      fontSize: '14px', fontFamily: 'Arial Black', color: '#FF8C44',
+      stroke: '#000', strokeThickness: 2,
+    }).setOrigin(0.5).setDepth(D + 1).setAlpha(0));
+    this.tweens.add({ targets: lbl, alpha: 1, duration: 240 });
+
+    const btnBg = track(this.add.graphics().setDepth(D + 1).setAlpha(0));
+    btnBg.fillStyle(0x1A6A2A, 1); btnBg.fillRoundedRect(W / 2 - 100, panY + 46, 200, 40, 10);
+    btnBg.fillStyle(0x27AE60, 1); btnBg.fillRoundedRect(W / 2 - 100, panY + 46, 200, 27, 10);
+    btnBg.lineStyle(2, 0x2ECC71, 0.85); btnBg.strokeRoundedRect(W / 2 - 100, panY + 46, 200, 40, 10);
+    this.tweens.add({ targets: btnBg, alpha: 1, duration: 240 });
+
+    const btnTxt = track(this.add.text(W / 2, panY + 66, '▶  Watch Ad  → +1 Spin', {
+      fontSize: '13px', fontFamily: 'Arial Black',
+      color: '#FFFFFF', stroke: '#0A3A1A', strokeThickness: 2,
+    }).setOrigin(0.5).setDepth(D + 2).setAlpha(0));
+    this.tweens.add({ targets: btnTxt, alpha: 1, duration: 240 });
+
+    const skipTxt = track(this.add.text(W / 2, panY + 103, 'No thanks', {
+      fontSize: '11px', fontFamily: 'Arial', color: '#445566',
+    }).setOrigin(0.5).setDepth(D + 2).setAlpha(0));
+    this.tweens.add({ targets: skipTxt, alpha: 1, duration: 240 });
+
+    const autoTimer = this.time.delayedCall(6500, dismiss);
+
+    const btnHit = track(this.add.rectangle(W / 2, panY + 66, 200, 40, 0, 0)
+      .setDepth(D + 3).setInteractive({ useHandCursor: true }));
+    btnHit.on('pointerdown', () => {
+      autoTimer.remove();
+      btnHit.disableInteractive();
+      btnTxt.setText('Loading...');
+      this.time.delayedCall(2500, () => {
+        GameState.addSpins(1);
+        this.updateHUD();
+        dismiss();
+      });
+    });
+
+    const skipHit = track(this.add.rectangle(W / 2, panY + 103, 120, 26, 0, 0)
+      .setDepth(D + 3).setInteractive({ useHandCursor: true }));
+    skipHit.on('pointerdown', () => { autoTimer.remove(); dismiss(); });
   }
 
   _handleComboEvents(result) {
@@ -1002,13 +1235,13 @@ export class GameScene extends Phaser.Scene {
       .setColor(color)
       .setAlpha(1)
       .setPosition(this.scale.width / 2, this.scale.height * 0.73)
-      .setScale(2.2);
+      .setScale(3.5);
 
     // Slam-in from oversized → normal (feels like it LANDS)
     this.tweens.add({
       targets: this.resultText,
       scaleX: 1, scaleY: 1,
-      duration: 190, ease: 'Back.easeOut',
+      duration: 220, ease: 'Back.easeOut',
     });
     this.tweens.add({
       targets: this.resultText,
@@ -1543,6 +1776,11 @@ export class GameScene extends Phaser.Scene {
         targets: overlay, alpha: 0, duration: 500,
         onComplete: () => overlay.forEach(o => o.destroy()),
       });
+      if (currentVillage % 5 === 0) {
+        this.time.delayedCall(1200, () => this._launchBossFight(currentVillage));
+      } else {
+        adService.showInterstitial();
+      }
     };
 
     track(this.add.rectangle(W / 2, H / 2, W, H, 0x000000, 0.88).setDepth(D));
@@ -1562,7 +1800,7 @@ export class GameScene extends Phaser.Scene {
     this.tweens.add({ targets: [mainTxt, compTxt], scaleX: 1, scaleY: 1, duration: 420, ease: 'Back.easeOut' });
 
     const transitionTxt = track(this.add.text(W / 2, H * 0.42,
-      `Village ${currentVillage}  →  Village ${currentVillage + 1}`, {
+      `Village ${currentVillage} → Village ${currentVillage + 1}`, {
         fontSize: '17px', fontFamily: 'Arial', color: '#AABBCC',
       }).setOrigin(0.5).setAlpha(0).setDepth(D + 1));
     this.tweens.add({ targets: transitionTxt, alpha: 1, duration: 400, delay: 300 });
@@ -1613,6 +1851,14 @@ export class GameScene extends Phaser.Scene {
     audioSystem.villageComplete();
     burstParticles(this, W / 2, H * 0.34, [0xFFD700, 0xFF8C00, 0xFFFFFF, 0x2ECC71], 48);
     screenShake(this, 0.015, 450);
+  }
+
+  _launchBossFight(village) {
+    this.cameras.main.fadeOut(320, 0, 0, 0);
+    this.time.delayedCall(330, () => {
+      this.scene.sleep('GameScene');
+      this.scene.launch('BossScene', { village });
+    });
   }
 
   // ─── DAILY LOGIN STREAK ───────────────────────────────────────────────────
@@ -1792,6 +2038,137 @@ export class GameScene extends Phaser.Scene {
   _playOpeningSequence() {
     this.cameras.main.setZoom(1.5);
     this.cameras.main.zoomTo(1.0, 700, 'Cubic.easeOut');
+  }
+
+  // ─── LUCKY SPIN BOOST ────────────────────────────────────────────────────
+
+  _initLuckyBoost() {
+    const COOLDOWN = 60 * 60 * 1000; // 1 hour
+    const usedAt   = parseInt(localStorage.getItem('luckyBoostAt') || '0');
+    if (Date.now() - usedAt < COOLDOWN) return;
+    if (this.spinSystem.isSpinning) return;
+    // Wait for the rival-attack banner to clear before stacking another top-banner
+    if (this._rivalBannerOverlay?.length > 0) {
+      this.time.delayedCall(5000, () => this._initLuckyBoost());
+      return;
+    }
+    this._showLuckyBoostBanner();
+  }
+
+  _showLuckyBoostBanner() {
+    const { width: W } = this.scale;
+    const D    = 35;
+    const h    = 82;
+    const FY   = 8;
+    const OFF  = -h - 10;
+
+    this._luckyBannerObjs?.forEach(o => o.destroy());
+    this._luckyBannerObjs = [];
+    const track = o => { this._luckyBannerObjs.push(o); return o; };
+
+    const panelG = track(this.add.graphics().setDepth(D));
+    panelG.fillStyle(0x1A0040, 0.96);
+    panelG.fillRoundedRect(8, FY, W - 16, h, 12);
+    panelG.fillStyle(0xFFD700, 0.07);
+    panelG.fillRoundedRect(8, FY, W - 16, 32, 12);
+    panelG.lineStyle(2, 0xFFD700, 0.75);
+    panelG.strokeRoundedRect(8, FY, W - 16, h, 12);
+    panelG.y = OFF; this.tweens.add({ targets: panelG, y: 0, duration: 420, ease: 'Back.easeOut' });
+
+    const title = track(this.add.text(W / 2, FY + OFF + 22, '⚡  LUCKY SPIN BOOST  ⚡', {
+      fontSize: '14px', fontFamily: 'Arial Black',
+      color: '#FFD700', stroke: '#000000', strokeThickness: 3,
+    }).setOrigin(0.5).setDepth(D + 1));
+    this.tweens.add({ targets: title, y: title.y - OFF, duration: 420, ease: 'Back.easeOut' });
+
+    const sub = track(this.add.text(W / 2, FY + OFF + 42, 'Double jackpot chance for 30 seconds!', {
+      fontSize: '11px', fontFamily: 'Arial', color: '#BB99FF',
+    }).setOrigin(0.5).setDepth(D + 1));
+    this.tweens.add({ targets: sub, y: sub.y - OFF, duration: 420, ease: 'Back.easeOut' });
+
+    // ACTIVATE button
+    const activateBg = track(this.add.graphics().setDepth(D + 1));
+    activateBg.fillStyle(0x5A1A9A, 1); activateBg.fillRoundedRect(W / 2 - 60, FY + 54, 120, 26, 7);
+    activateBg.fillStyle(0x8B2FCC, 1); activateBg.fillRoundedRect(W / 2 - 60, FY + 54, 120, 17, 7);
+    activateBg.lineStyle(1.5, 0xBB66FF, 0.80); activateBg.strokeRoundedRect(W / 2 - 60, FY + 54, 120, 26, 7);
+    activateBg.y = OFF; this.tweens.add({ targets: activateBg, y: 0, duration: 420, ease: 'Back.easeOut' });
+
+    const activateTxt = track(this.add.text(W / 2, FY + OFF + 67, 'ACTIVATE!', {
+      fontSize: '11px', fontFamily: 'Arial Black', color: '#FFFFFF',
+      stroke: '#000', strokeThickness: 2,
+    }).setOrigin(0.5).setDepth(D + 2));
+    this.tweens.add({ targets: activateTxt, y: activateTxt.y - OFF, duration: 420, ease: 'Back.easeOut' });
+
+    // Dismiss ✕
+    const dismissTxt = track(this.add.text(W - 26, FY + OFF + 18, '✕', {
+      fontSize: '18px', fontFamily: 'Arial Black', color: '#554466',
+    }).setOrigin(0.5).setDepth(D + 2));
+    this.tweens.add({ targets: dismissTxt, y: dismissTxt.y - OFF, duration: 420, ease: 'Back.easeOut' });
+
+    const dismissBanner = () => {
+      this.tweens.add({
+        targets: this._luckyBannerObjs, alpha: 0, duration: 220,
+        onComplete: () => { this._luckyBannerObjs?.forEach(o => o.destroy()); this._luckyBannerObjs = []; },
+      });
+    };
+
+    // Hit zones — start off-screen (same offset as visuals) then slide to final position
+    const actHit = track(this.add.rectangle(W / 2, FY + OFF + 67, 120, 26, 0, 0)
+      .setDepth(D + 3).setInteractive({ useHandCursor: true }));
+    this.tweens.add({ targets: actHit, y: actHit.y - OFF, duration: 420, ease: 'Back.easeOut' });
+    actHit.on('pointerdown', () => {
+      dismissBanner();
+      this.time.delayedCall(240, () => this._activateLuckyBoost());
+    });
+
+    const xHit = track(this.add.rectangle(W - 26, FY + OFF + 18, 30, 30, 0, 0)
+      .setDepth(D + 3).setInteractive({ useHandCursor: true }));
+    this.tweens.add({ targets: xHit, y: xHit.y - OFF, duration: 420, ease: 'Back.easeOut' });
+    xHit.on('pointerdown', dismissBanner);
+
+    // Auto-dismiss after 12 s
+    this.time.delayedCall(12000, dismissBanner);
+  }
+
+  _activateLuckyBoost() {
+    localStorage.setItem('luckyBoostAt', String(Date.now()));
+    this.spinSystem.setJackpotBoost('jackpot', 2);
+
+    const { width: W, height: H } = this.scale;
+    const DURATION = 30;
+
+    // Countdown badge anchored near wheel
+    const badgeG = this.add.graphics().setDepth(20);
+    const badgeTxt = this.add.text(this.wheelCx, this.wheelCy - this.wheelR - 30, '', {
+      fontSize: '11px', fontFamily: 'Arial Black', color: '#FFD700',
+      stroke: '#000', strokeThickness: 2,
+    }).setOrigin(0.5).setDepth(21);
+
+    let secsLeft = DURATION;
+    const drawBadge = () => {
+      badgeG.clear();
+      badgeG.fillStyle(0x1A0040, 0.85);
+      badgeG.fillRoundedRect(this.wheelCx - 60, this.wheelCy - this.wheelR - 42, 120, 22, 7);
+      badgeG.lineStyle(1.5, 0xBB66FF, 0.70);
+      badgeG.strokeRoundedRect(this.wheelCx - 60, this.wheelCy - this.wheelR - 42, 120, 22, 7);
+      badgeTxt.setText(`⚡ BOOST  ${secsLeft}s`);
+    };
+    drawBadge();
+
+    const ticker = this.time.addEvent({
+      delay: 1000, repeat: DURATION - 1,
+      callback: () => { secsLeft--; drawBadge(); },
+    });
+
+    this.time.delayedCall(DURATION * 1000, () => {
+      this.spinSystem.clearJackpotBoost();
+      ticker.remove();
+      this.tweens.add({
+        targets: [badgeG, badgeTxt], alpha: 0, duration: 400,
+        onComplete: () => { badgeG.destroy(); badgeTxt.destroy(); },
+      });
+      this.showResult('Boost ended!', '#BB66FF');
+    });
   }
 
   // ─── CHIMNEY SMOKE ────────────────────────────────────────────────────────

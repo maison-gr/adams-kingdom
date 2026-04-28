@@ -1,6 +1,21 @@
 import { GameState }      from '../GameState.js';
 import { getLeaderboard } from '../api/client.js';
 
+// Client-side fallback bots — shown when server is unreachable.
+// Must match the server BOTS array in players.js.
+const BOTS = [
+  { name: 'EmperorAsh',   coins: 48200, buildings: [3,3,3,3,3,2], _bot: true },
+  { name: 'StormQueen',   coins: 35600, buildings: [3,3,3,3,2,1], _bot: true },
+  { name: 'IronKingdom',  coins: 27800, buildings: [3,3,3,2,2,1], _bot: true },
+  { name: 'GoldCrusader', coins: 21400, buildings: [3,3,2,2,2,1], _bot: true },
+  { name: 'NightBaron',   coins: 15700, buildings: [3,3,2,2,1,1], _bot: true },
+  { name: 'CrystalDuke',  coins: 11200, buildings: [3,2,2,2,1,0], _bot: true },
+  { name: 'ShadowKnight', coins:  8400, buildings: [3,2,2,1,1,0], _bot: true },
+  { name: 'WildPeasant',  coins:  5600, buildings: [2,2,1,1,1,0], _bot: true },
+  { name: 'BraveSmith',   coins:  3200, buildings: [2,1,1,1,0,0], _bot: true },
+  { name: 'YoungFarmer',  coins:  1800, buildings: [1,1,1,0,0,0], _bot: true },
+];
+
 export class LeaderboardScene extends Phaser.Scene {
   constructor() { super('LeaderboardScene'); }
 
@@ -20,15 +35,9 @@ export class LeaderboardScene extends Phaser.Scene {
 
     getLeaderboard().then(rows => {
       this._statusText.destroy();
-      if (!rows || rows.length === 0) {
-        this.add.text(W / 2, H * 0.42,
-          'No players yet.\nPlay online to appear here!', {
-            fontSize: '16px', fontFamily: 'Arial',
-            color: '#778899', align: 'center',
-          }).setOrigin(0.5).setDepth(5);
-        return;
-      }
-      this._buildRows(W, rows);
+      // If server is unreachable or returns nothing, fall back to bots only
+      const data = (rows && rows.length > 0) ? rows : BOTS;
+      this._buildRows(W, data);
     });
   }
 
@@ -89,28 +98,35 @@ export class LeaderboardScene extends Phaser.Scene {
     const rowH   = 52;
     const myName = GameState.playerName;
 
-    // Panel background
+    // If the current player isn't already in the list, append them below a divider
+    const alreadyIn  = rows.some(r => r.name === myName);
+    const meEntry    = alreadyIn ? null : {
+      name:      myName,
+      coins:     GameState.coins,
+      buildings: GameState.buildings || [],
+      _me:       true,
+    };
+    const totalRows  = rows.length + (meEntry ? 2 : 0); // +2 = divider row + me row
+
+    // Panel background — tall enough for the extra me-row
     const bgG = this.add.graphics().setDepth(4);
     bgG.fillStyle(0x05051E, 0.82);
-    bgG.fillRoundedRect(panelX, startY - 6, panelW, rows.length * rowH + 16, 12);
+    bgG.fillRoundedRect(panelX, startY - 6, panelW, totalRows * rowH + 16, 12);
     bgG.lineStyle(1.5, 0x2A2A5A, 0.90);
-    bgG.strokeRoundedRect(panelX, startY - 6, panelW, rows.length * rowH + 16, 12);
+    bgG.strokeRoundedRect(panelX, startY - 6, panelW, totalRows * rowH + 16, 12);
 
-    const MEDALS      = ['🥇', '🥈', '🥉'];
-    const MEDAL_COLS  = ['#FFD700', '#C8C8C8', '#CD8B4A'];
+    const MEDALS     = ['🥇', '🥈', '🥉'];
+    const MEDAL_COLS = ['#FFD700', '#C8C8C8', '#CD8B4A'];
 
-    rows.forEach((player, i) => {
+    const drawRow = (player, i, isMe) => {
       const rowY = startY + i * rowH;
       const midY = rowY + rowH / 2;
-      const isMe = player.name === myName;
 
-      // Separator
       if (i > 0) {
         bgG.lineStyle(1, 0x2A2A5A, 0.45);
         bgG.lineBetween(panelX + 10, rowY, panelX + panelW - 10, rowY);
       }
 
-      // "You" highlight row
       if (isMe) {
         bgG.fillStyle(0xFFD700, 0.09);
         bgG.fillRoundedRect(panelX + 4, rowY + 2, panelW - 8, rowH - 4, 7);
@@ -118,33 +134,28 @@ export class LeaderboardScene extends Phaser.Scene {
         bgG.strokeRoundedRect(panelX + 4, rowY + 2, panelW - 8, rowH - 4, 7);
       }
 
-      // Collect texts for stagger-in tween
       const rowTexts = [];
 
-      // Rank badge
-      const rankStr  = i < 3 ? MEDALS[i]      : `#${i + 1}`;
-      const rankCol  = i < 3 ? MEDAL_COLS[i]   : '#778899';
+      const rankStr = i < 3 ? MEDALS[i] : `#${i + 1}`;
+      const rankCol = i < 3 ? MEDAL_COLS[i] : '#778899';
       rowTexts.push(this.add.text(panelX + 26, midY, rankStr, {
         fontSize: i < 3 ? '22px' : '13px',
         fontFamily: 'Arial Black', color: rankCol,
         stroke: '#000000', strokeThickness: 2,
       }).setOrigin(0.5).setDepth(5));
 
-      // Name
+      const nameColor = isMe ? '#FFD700' : player._bot ? '#556677' : '#DDEEFF';
       rowTexts.push(this.add.text(panelX + 60, midY, player.name, {
         fontSize: '14px', fontFamily: 'Arial Black',
-        color: isMe ? '#FFD700' : '#DDEEFF',
-        stroke: '#000000', strokeThickness: 2,
+        color: nameColor, stroke: '#000000', strokeThickness: 2,
       }).setOrigin(0, 0.5).setDepth(5));
 
-      // Kingdom level (sum of building levels)
       const kLvl = (player.buildings || []).reduce((s, v) => s + v, 0);
       rowTexts.push(this.add.text(W * 0.62, midY, `Lv.${kLvl}`, {
         fontSize: '12px', fontFamily: 'Arial', color: '#1ABC9C',
         stroke: '#000000', strokeThickness: 1,
       }).setOrigin(0.5).setDepth(5));
 
-      // Coins
       rowTexts.push(this.add.text(panelX + panelW - 12, midY,
         `${player.coins.toLocaleString()} 💰`, {
           fontSize: '13px', fontFamily: 'Arial Black',
@@ -152,16 +163,29 @@ export class LeaderboardScene extends Phaser.Scene {
           stroke: '#000000', strokeThickness: 2,
         }).setOrigin(1, 0.5).setDepth(5));
 
-      // Staggered entrance
       rowTexts.forEach(t => t.setAlpha(0));
       this.tweens.add({
-        targets: rowTexts,
-        alpha: 1,
-        duration: 280,
-        delay: 120 + i * 55,
-        ease: 'Power2',
+        targets: rowTexts, alpha: 1, duration: 280,
+        delay: 120 + i * 55, ease: 'Power2',
       });
-    });
+    };
+
+    rows.forEach((player, i) => drawRow(player, i, player.name === myName));
+
+    // Append "· · ·" divider + player's own row when outside top 10
+    if (meEntry) {
+      const divY   = startY + rows.length * rowH;
+      const meRowI = rows.length + 1;
+
+      bgG.lineStyle(1, 0x2A2A5A, 0.45);
+      bgG.lineBetween(panelX + 10, divY, panelX + panelW - 10, divY);
+
+      this.add.text(panelX + panelW / 2, divY + rowH / 2, '· · ·', {
+        fontSize: '14px', fontFamily: 'Arial Black', color: '#334466',
+      }).setOrigin(0.5).setDepth(5);
+
+      drawRow(meEntry, meRowI, true);
+    }
   }
 
   // ─── CLOSE BUTTON ───────────────────────────────────────────────────────────
