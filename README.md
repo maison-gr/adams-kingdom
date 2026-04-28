@@ -24,6 +24,7 @@
 [![Capacitor](https://img.shields.io/badge/Capacitor-6-119EFF?style=for-the-badge&logo=capacitor)](https://capacitorjs.com)
 [![Node](https://img.shields.io/badge/Node.js-20-339933?style=for-the-badge&logo=node.js)](https://nodejs.org)
 [![MongoDB](https://img.shields.io/badge/MongoDB-Atlas-47A248?style=for-the-badge&logo=mongodb)](https://mongodb.com)
+[![AdMob](https://img.shields.io/badge/AdMob-6.2-EA4335?style=for-the-badge&logo=googleads)](https://admob.google.com)
 
 *Named after Adam 👦 and Ghofrane 👩 — built by [MaisonGR](https://github.com/maison-gr)*
 
@@ -35,9 +36,9 @@
 
 A fully playable mobile game built with **Phaser.js + Capacitor** — no Unity, no native code, just web tech packaged as a real iOS/Android app.
 
-Spin a gold wheel. Win coins to upgrade your kingdom. Attack rival villages. Dig for buried treasure. Open chests for rare cards and rewards. Climb the rank ladder from Peasant to Emperor. Every spin matters.
+Spin a gold wheel. Win coins to upgrade your kingdom. Attack rival villages. Dig for buried treasure. Open chests for rare cards and rewards. Fight dungeon bosses every 5 villages. Climb the rank ladder from Peasant to Emperor. Every spin matters.
 
-Every pixel is drawn with **Phaser Graphics primitives** — no external art assets, no sprite sheets, no audio files. The game features synthesized Web Audio API sounds, a deep-sky night background with glowing moon halo and distant city silhouette, a cobblestone kingdom path lined with bushes, 6 architecturally distinct buildings that evolve across 4 levels, and a glass-morphism HUD panel with inner glow and double-border styling.
+Every pixel is drawn with **Phaser Graphics primitives** — no external art assets, no sprite sheets, no audio files. The game features synthesized Web Audio API sounds including a procedural pentatonic BGM, a deep-sky night background with glowing moon halo and distant city silhouette, a cobblestone kingdom path lined with bushes, 6 architecturally distinct buildings that evolve across 4 levels, and a glass-morphism HUD panel with inner glow and double-border styling.
 
 ---
 
@@ -59,6 +60,7 @@ Every pixel is drawn with **Phaser Graphics primitives** — no external art ass
 │                                                                  │
 │   Combo streak  ──▶  Fever mode (×2 rewards, 5 spins)           │
 │   Complete village  ──▶  Advance to next village · bonus reward  │
+│   Every 5 villages ──▶  ☠️  BOSS FIGHT  ──▶  Spin to deal dmg  │
 │   Daily login  ──▶  7-day streak rewards                        │
 │   Collect 30 cards  ──▶  Claim set rewards                      │
 │                                                                  │
@@ -78,6 +80,26 @@ Every pixel is drawn with **Phaser Graphics primitives** — no external art ass
 | 🔄 SPIN +1 | Emerald | Free extra spin granted |
 | 💰 1,000 coins | Yellow-Gold | Instant coins added |
 | ⛏️ RAID | Dark teal | RaidScene: dig 3 of 4 spots for buried coins |
+
+### ☠️ Boss Fight
+
+Every **5 villages** a dungeon boss fight launches automatically after the village-complete ceremony. You face the **Shadow King** in a torch-lit dungeon:
+
+- Spin a special boss wheel to deal damage — each segment has its own effect:
+
+| Segment | Effect |
+|:-------:|:-------|
+| ⚔️ ATTACK | 60 HP damage |
+| 💰 COINS | Damage scaled to coin value |
+| 🎰 JACKPOT | 120 HP + screen shake + burst particles |
+| 🛡️ SHIELD | Block the boss's next counterattack |
+| 🔄 SPIN +1 | 25 HP + bonus attack charge |
+| 🎁 CHEST | 30 HP + loot |
+| ⛏️ RAID | 45 HP + gold steal |
+
+- After each player spin there is a **30% chance** the boss counterattacks — stealing 80–200 coins with a red screen flash
+- If HP reaches 0: **Victory** — earn `5,000 + village × 500` coins + 50 spins + interstitial ad
+- If coins run out: **Defeat** overlay appears — watch a **rewarded ad** to continue with full HP restored
 
 ### 🔥 Combo System & Fever Mode
 
@@ -175,7 +197,9 @@ Three randomized missions reset every 24 hours (e.g. *"Spin 5 times"*, *"Upgrade
 
 ## 🔊 Audio & Game Feel
 
-All sounds are **synthesized at runtime** using the Web Audio API — no audio files bundled:
+All sounds are **synthesized at runtime** using the Web Audio API — no audio files bundled.
+
+**Background Music** plays a procedural pentatonic arpeggio (C major: 261–659 Hz triangle oscillators) with a C2 bass drone every 4 beats. BGM and sound effects can each be toggled independently in the **Settings** screen.
 
 | Event | Sound |
 |:------|:------|
@@ -194,7 +218,7 @@ All sounds are **synthesized at runtime** using the Web Audio API — no audio f
 | Village complete | Grand melody + bass chord |
 | Building upgrade | Rising triangle tone |
 
-Haptic feedback fires via `navigator.vibrate()` on major events. A **🔊/🔇 mute toggle** sits below the HUD right edge; state persists in `localStorage`.
+Haptic feedback fires via `navigator.vibrate()` on major events. Sound and music controls are in the **Settings** screen (gear icon, bottom-right corner).
 
 New players see a one-time **tutorial hint** ("Tap SPIN to play! 👆") that auto-dismisses on first spin.
 
@@ -246,13 +270,64 @@ Packaged as a **real native app** via Capacitor — no browser bar, no WebView c
 
 ```bash
 npm run build
-
-npx cap add android      # first time only
-npx cap sync             # every build
-npx cap open android     # opens Android Studio → Run
+npx cap sync             # copy web assets + plugins into android/
+npx cap open android     # opens Android Studio → Run on device/emulator
 ```
 
-> Requires **Android Studio** for Android · **Xcode 14+** for iOS
+> Requires **Android Studio** + **Java 17** for Android · **Xcode 14+** for iOS
+
+### Signed Release Build (Google Play)
+
+1. Generate a keystore (one-time):
+   ```bash
+   keytool -genkeypair -v -keystore android/adams-kingdom-release.keystore \
+     -alias adamskingdom -keyalg RSA -keysize 2048 -validity 10000
+   ```
+
+2. Create `android/key.properties` (gitignored):
+   ```
+   storePassword=YOUR_STORE_PASSWORD
+   keyPassword=YOUR_KEY_PASSWORD
+   keyAlias=adamskingdom
+   storeFile=../adams-kingdom-release.keystore
+   ```
+
+3. Build signed AAB:
+   ```bash
+   cd android
+   ./gradlew bundleRelease
+   # output: android/app/build/outputs/bundle/release/app-release.aab
+   ```
+
+> Keep the keystore backed up — losing it means you cannot update the app on Google Play.
+
+### AdMob Setup
+
+`AdService.js` ships with **test unit IDs**. Before publishing:
+
+1. Register the app at [admob.google.com](https://admob.google.com) and create ad units.
+2. Replace the test IDs in [src/services/AdService.js](src/services/AdService.js):
+   ```js
+   const INTERSTITIAL_ID = 'ca-app-pub-XXXXXXXXXXXXXXXX/YYYYYYYYYY';
+   const REWARDED_ID     = 'ca-app-pub-XXXXXXXXXXXXXXXX/YYYYYYYYYY';
+   const BANNER_ID       = 'ca-app-pub-XXXXXXXXXXXXXXXX/YYYYYYYYYY';
+   ```
+3. Replace the test app ID in `android/app/src/main/AndroidManifest.xml`:
+   ```xml
+   <meta-data
+     android:name="com.google.android.gms.ads.APPLICATION_ID"
+     android:value="ca-app-pub-XXXXXXXXXXXXXXXX~YYYYYYYYYY"/>
+   ```
+4. In `capacitor.config.json` set `initializeForTesting: false`.
+
+### App Icon & Splash
+
+To regenerate or re-sync Android densities:
+
+```bash
+node generate-assets.mjs       # regenerate resources/icon.png + resources/splash.png
+npx @capacitor/assets generate  # push all densities into android/
+```
 
 ---
 
@@ -266,6 +341,9 @@ adams-kingdom/
 │   ├── GameState.js               All state, localStorage, spin refill,
 │   │                              passive income, village progression
 │   │
+│   ├── constants/
+│   │   └── segments.js            Shared wheel segment definitions (weight, color, type)
+│   │
 │   ├── scenes/
 │   │   ├── BootScene.js           Splash / preload
 │   │   ├── GameScene.js           Main: wheel · kingdom · HUD · modals
@@ -273,10 +351,12 @@ adams-kingdom/
 │   │   │                           login streak, attack target panel, rival banner)
 │   │   ├── AttackScene.js         Enemy village — tap to destroy + steal coins
 │   │   ├── RaidScene.js           Dig field — 3 picks, hidden coin loot
+│   │   ├── BossScene.js           Boss fight every 5 villages — Shadow King dungeon
 │   │   ├── ChestScene.js          Opening ceremony — lid pop + reward cards + card reveal
 │   │   ├── LeaderboardScene.js    Top-10 leaderboard (coins), synced from backend
 │   │   ├── MissionsScene.js       Daily missions list, countdown timer, Cards button
-│   │   └── CardsScene.js          Card collection — 5 set panels, claim rewards
+│   │   ├── CardsScene.js          Card collection — 5 set panels, claim rewards
+│   │   └── SettingsScene.js       Player name, sound/music toggles, reset progress
 │   │
 │   ├── systems/
 │   │   ├── SpinSystem.js          Wheel physics: ease-out quart + bounce-settle
@@ -296,8 +376,12 @@ adams-kingdom/
 │   │   ├── juice.js               VFX: flyingCoins · burstParticles · goldRain
 │   │   │                               screenShake · upgradeEffect · shieldBubble
 │   │   │                               nearMissFlash · feverActivate · streakBurst
-│   │   └── AudioSystem.js         Synthesized Web Audio API sounds (14 effects),
-│   │                              haptic feedback, mute toggle, localStorage persist
+│   │   └── AudioSystem.js         Synthesized Web Audio API sounds (14 SFX),
+│   │                              procedural pentatonic BGM, mute/music toggles
+│   │
+│   ├── services/
+│   │   └── AdService.js           AdMob wrapper — rewarded + interstitial + banner;
+│   │                              browser-safe (resolves immediately outside app)
 │   │
 │   └── api/
 │       └── client.js              Offline-safe REST client
@@ -308,6 +392,11 @@ adams-kingdom/
 │       ├── models/Player.js       Mongoose schema
 │       └── routes/players.js     /sync  /raid-target  /attack/:id  /leaderboard
 │
+├── resources/
+│   ├── icon.png                   1024×1024 app icon (crown + castle, gold/navy)
+│   └── splash.png                 2732×2732 splash screen source
+│
+├── generate-assets.mjs            Generates icon/splash PNGs from inline SVG via sharp
 ├── index.html
 ├── vite.config.js
 └── capacitor.config.json
@@ -324,8 +413,9 @@ Sprint 3 — Progression   █████████████████�
 Sprint 4 — Retention     ████████████████████ 100%  ✅
 Sprint 5A — Cards        ████████████████████ 100%  ✅
 Sprint 5B — Audio/Feel   ████████████████████ 100%  ✅
-Phase 3 — Monetize       ░░░░░░░░░░░░░░░░░░░░   0%  📋
-Phase 4 — Ship           ░░░░░░░░░░░░░░░░░░░░   0%  📋
+Sprint 6 — Boss/Settings ████████████████████ 100%  ✅
+Phase 3 — Monetize       ████████████████░░░░  80%  🔧
+Phase 4 — Ship           ████░░░░░░░░░░░░░░░░  20%  🔧
 ```
 
 **Sprint 1 — Core loop** ✅
@@ -377,11 +467,28 @@ Phase 4 — Ship           ░░░░░░░░░░░░░░░░░�
 - [x] Mute toggle button (🔊/🔇) with localStorage persistence
 - [x] First-time tutorial hint — bouncing arrow auto-dismissed on first spin
 
-**Phase 3 — Monetize** 📋
-- [ ] AdMob rewarded video ads — extra spins
+**Sprint 6 — Boss Fight & Settings** ✅
+- [x] BossScene — Shadow King dungeon fight, torch animations, boss sprite, HP bar
+- [x] Boss wheel with outcome damage map and 30% counterattack mechanic
+- [x] Defeat overlay with "Watch Ad" rewarded ad to continue
+- [x] Victory reward: `5000 + village × 500` coins + 50 spins
+- [x] SettingsScene — change player name (DOM input overlay), sound/music toggles, reset progress
+- [x] Settings gear button repositioned to bottom-right corner
+- [x] Mute button removed from main HUD, consolidated into Settings
+- [x] Procedural pentatonic BGM (triangle oscillators + C2 bass drone)
+- [x] ACTIVATE! button centered in Lucky Spin Boost banner
+
+**Phase 3 — Monetize** 🔧
+- [x] AdMob integration — rewarded ads (boss continue) + interstitials (village transitions)
+- [x] AdService wrapper — browser-safe, graceful fallback
+- [x] Test ad unit IDs wired; production IDs ready to swap in
 - [ ] In-app purchases — coin packs, spin bundles
 
-**Phase 4 — Ship** 📋
+**Phase 4 — Ship** 🔧
+- [x] App icon + splash screen (1024×1024 / 2732×2732 generated from SVG)
+- [x] Android signing config (keystore + key.properties)
+- [x] Signed release AAB buildable via `./gradlew bundleRelease`
+- [ ] Replace test AdMob IDs with live production IDs
 - [ ] Push notifications (daily free spin reminder)
 - [ ] Google Play Store submission
 - [ ] Apple App Store submission
@@ -395,10 +502,12 @@ Phase 4 — Ship           ░░░░░░░░░░░░░░░░░�
 | Game engine | Phaser.js 3.88 | Mature 2D canvas/WebGL — mobile-friendly |
 | Build | Vite 5.4 | Sub-second HMR, ES module output |
 | Native | Capacitor 6 | WebView wrapper — one codebase, both stores |
+| Ads | @capacitor-community/admob 6.2.0 | Rewarded + interstitial ads; Java 17 compatible |
 | Backend | Express + Mongoose | Thin REST API, offline-tolerant client |
 | Database | MongoDB Atlas | Schemaless player docs, free tier |
-| Audio | Web Audio API | Synthesized sounds — zero audio files |
+| Audio | Web Audio API | Synthesized SFX + procedural BGM — zero audio files |
 | State | localStorage | Instant, offline-first, no login required |
+| Runtime | Java 17 + AGP 8.1.4 | Android build toolchain |
 
 ---
 
