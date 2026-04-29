@@ -79,7 +79,7 @@ Every pixel is drawn with **Phaser Graphics primitives** — no external art ass
 | 🎁 CHEST | Teal | Win a Wooden / Silver / Golden chest (auto-opens) |
 | 🔄 SPIN +1 | Emerald | Free extra spin granted |
 | 💰 1,000 coins | Yellow-Gold | Instant coins added |
-| ⛏️ RAID | Dark teal | RaidScene: dig 3 of 4 spots for buried coins |
+| ⛏️ RAID | Dark teal | RaidScene: atmospheric dusk dig field — pick 3 of 4 burial mounds for buried coins |
 
 ### ☠️ Boss Fight
 
@@ -224,6 +224,24 @@ New players see a one-time **tutorial hint** ("Tap SPIN to play! 👆") that aut
 
 ---
 
+## 📐 Responsive Design
+
+The game renders at **native resolution on every screen** — phones, tablets, iPads — with no black bars or letterboxing.
+
+| Technique | Details |
+|:----------|:--------|
+| `Phaser.Scale.RESIZE` | Canvas fills the full viewport; layout recomputes on every scene create |
+| Scale factor `S` | `Math.max(1, Math.min(W / 480, 1.5))` — fonts/sizes never shrink below design baseline on narrow phones, grow up to 1.5× on tablets |
+| Wheel radius cap | `Math.min(W × 0.40, H × 0.28, 200)` — prevents overflow on 768-pixel+ tablet screens |
+| `viewport-fit=cover` | Fills iPhone notch + Dynamic Island areas |
+| `position: fixed` + `-webkit-fill-available` | Prevents iOS Safari address-bar layout jump |
+| PWA meta tags | `apple-mobile-web-app-capable` — runs chrome-free when added to Home Screen |
+| Landscape guard | Rotate-device overlay shown when viewport height < 500 pixels in landscape |
+
+All HUD labels, wheel labels, combo text, result banners, and modal text use the `S` scale factor so every element reads clearly on a 360-pixel portrait phone or a 1024-pixel iPad.
+
+---
+
 ## 🚀 Quick Start
 
 ### Prerequisites
@@ -350,7 +368,9 @@ adams-kingdom/
 │   │   │                          (rank-up, village-complete, offline earnings,
 │   │   │                           login streak, attack target panel, rival banner)
 │   │   ├── AttackScene.js         Enemy village — tap to destroy + steal coins
-│   │   ├── RaidScene.js           Dig field — 3 picks, hidden coin loot
+│   │   ├── RaidScene.js           Atmospheric dusk dig field — animated lanterns,
+│   │   │                          burial mounds, wooden frame, glassmorphism HUD,
+│   │   │                          3 picks, flying-coin loot, jackpot flash
 │   │   ├── BossScene.js           Boss fight every 5 villages — Shadow King dungeon
 │   │   ├── ChestScene.js          Opening ceremony — lid pop + reward cards + card reveal
 │   │   ├── LeaderboardScene.js    Top-10 leaderboard (coins), synced from backend
