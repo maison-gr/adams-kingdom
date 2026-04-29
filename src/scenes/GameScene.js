@@ -129,21 +129,29 @@ export class GameScene extends Phaser.Scene {
     const hudBottom  = 100;
     const safeBottom = H - Math.max(24, H * 0.04); // respects gesture bar / notch
 
-    // Bottom stack (anchored from safeBottom upward)
-    const watchAdCy  = safeBottom - 23;                  // pill centre (pill is 46px tall)
-    const spinBtnCy  = watchAdCy  - 23 - 14 - 37;       // pill-half + gap + btn-half
+    // On short screens the watch-ad pill is hidden most of the time (spins rarely hit 0).
+    // Don't reserve its 60px slot — give it back to the kingdom and wheel.
+    const shortScreen = H < 720;
 
-    // Content zone: between HUD and top of spin button
+    const spinBtnCy = shortScreen
+      ? safeBottom - 37                    // btn sits flush at safe bottom
+      : safeBottom - 23 - 14 - 37;        // room for watch-ad pill below
+
+    const watchAdCy = shortScreen
+      ? spinBtnCy + 37 + 14 + 23          // positioned below btn (off-screen, hidden anyway)
+      : safeBottom - 23;
+
+    // Content zone: HUD bottom → top of spin button
     const contentBot = spinBtnCy - 37 - 12;
     const contentH   = contentBot - hudBottom;
 
-    // Kingdom occupies top 32% of the content zone
-    const groundY = hudBottom + Math.round(contentH * 0.32);
+    // Kingdom occupies top 38% of content zone (enough room for buildings)
+    const groundY = hudBottom + Math.round(contentH * 0.38);
 
-    // Wheel fills the remaining space below the kingdom
+    // Wheel fills the rest
     const wheelZoneTop = groundY + 12;
     const wheelZoneH   = contentBot - wheelZoneTop;
-    const wheelR = Math.min(W * 0.40, wheelZoneH * 0.48, 200);
+    const wheelR = Math.min(W * 0.40, wheelZoneH * 0.46, 200);
     const wheelCy = wheelZoneTop + wheelR + Math.max(0, (wheelZoneH - wheelR * 2) / 2);
 
     return { groundY, wheelCy, wheelR, spinBtnCy, watchAdCy };
