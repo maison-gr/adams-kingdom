@@ -12,14 +12,12 @@ import { SettingsScene }    from './scenes/SettingsScene.js';
 
 const config = {
   type: Phaser.AUTO,
-  width: 480,
-  height: 854,
   backgroundColor: '#0a0a2e',
   parent: 'game',
   audio: { noAudio: true },   // AudioSystem.js uses its own Web Audio context
   scene: [BootScene, GameScene, AttackScene, RaidScene, ChestScene, LeaderboardScene, MissionsScene, CardsScene, BossScene, SettingsScene],
   scale: {
-    mode: Phaser.Scale.FIT,
+    mode: Phaser.Scale.RESIZE,
     autoCenter: Phaser.Scale.CENTER_BOTH,
   },
 };

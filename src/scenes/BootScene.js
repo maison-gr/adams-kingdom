@@ -4,6 +4,8 @@ export class BootScene extends Phaser.Scene {
   create() {
     const W = this.scale.width;
     const H = this.scale.height;
+    // Scale factor: never shrink below design baseline, grow up to 1.5× on tablets
+    const S = Math.max(1, Math.min(W / 480, 1.5));
 
     this.add.rectangle(W / 2, H / 2, W, H, 0x000000);
 
@@ -12,7 +14,7 @@ export class BootScene extends Phaser.Scene {
       this.add.circle(
         Phaser.Math.Between(0, W),
         Phaser.Math.Between(0, H * 0.85),
-        Phaser.Math.FloatBetween(0.4, 1.4),
+        Phaser.Math.FloatBetween(0.4, 1.4) * S,
         0xFFFFFF,
         Phaser.Math.FloatBetween(0.2, 0.7),
       );
@@ -20,28 +22,28 @@ export class BootScene extends Phaser.Scene {
 
     // "ADAM'S" — slams down from above
     const line1 = this.add.text(W / 2, H * 0.40, "ADAM'S", {
-      fontSize: '54px', fontFamily: 'Arial Black',
-      color: '#FFD700', stroke: '#000000', strokeThickness: 8,
+      fontSize: `${Math.round(54 * S)}px`, fontFamily: 'Arial Black',
+      color: '#FFD700', stroke: '#000000', strokeThickness: Math.round(8 * S),
     }).setOrigin(0.5).setScale(0.08).setAlpha(0);
 
     // "KINGDOM" — rises from below
     const line2 = this.add.text(W / 2, H * 0.54, 'KINGDOM', {
-      fontSize: '54px', fontFamily: 'Arial Black',
-      color: '#FFFFFF', stroke: '#FFD700', strokeThickness: 6,
+      fontSize: `${Math.round(54 * S)}px`, fontFamily: 'Arial Black',
+      color: '#FFFFFF', stroke: '#FFD700', strokeThickness: Math.round(6 * S),
     }).setOrigin(0.5).setScale(0.08).setAlpha(0);
 
     // Crown drops onto the title
-    const crown = this.add.text(W / 2, H * 0.18, '👑', { fontSize: '52px' })
+    const crown = this.add.text(W / 2, H * 0.18, '👑', { fontSize: `${Math.round(52 * S)}px` })
       .setOrigin(0.5).setAlpha(0);
 
     // Subtitle
     const sub = this.add.text(W / 2, H * 0.64, 'Spin  ·  Build  ·  Conquer', {
-      fontSize: '17px', fontFamily: 'Arial',
-      color: '#888899',
+      fontSize: `${Math.round(17 * S)}px`, fontFamily: 'Arial',
+      color: '#AAAACC',
     }).setOrigin(0.5).setAlpha(0);
 
     // Gold underline bar
-    const bar = this.add.rectangle(W / 2, H * 0.61, 0, 2, 0xFFD700, 0.7)
+    const bar = this.add.rectangle(W / 2, H * 0.61, 0, Math.round(2 * S), 0xFFD700, 0.7)
       .setAlpha(0);
 
     // ── Sequence ─────────────────────────────────────────────────────────────
@@ -68,7 +70,7 @@ export class BootScene extends Phaser.Scene {
 
     // 600ms: Gold bar sweeps in
     this.tweens.add({
-      targets: bar, width: 200, alpha: 1,
+      targets: bar, width: Math.round(220 * S), alpha: 1,
       duration: 340, delay: 560, ease: 'Cubic.easeOut',
     });
 

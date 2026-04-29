@@ -288,7 +288,8 @@ export class GameScene extends Phaser.Scene {
   drawWheel(W, H) {
     const cx = W / 2;
     const cy = H * 0.57;
-    const r  = W * 0.38;
+    // Cap radius: never exceed 200px or 28% of screen height (prevents tablet overflow)
+    const r  = Math.min(W * 0.40, H * 0.28, 200);
     this.wheelCx = cx;
     this.wheelCy = cy;
     this.wheelR  = r;
@@ -302,37 +303,54 @@ export class GameScene extends Phaser.Scene {
     this.wheelLabels   = [];
     this.drawWheelGraphics(0);
 
+    // Pointer and hub scale proportionally with wheel radius
+    const ps = r / 182; // pointer scale factor (baseline 182px)
+    const hs = r / 182; // hub scale factor
+
     // Pointer shadow
     const ptrShadow = this.add.graphics();
     ptrShadow.fillStyle(0x000000, 0.3);
-    ptrShadow.fillTriangle(cx - 12 + 3, cy - r - 7 + 3, cx + 12 + 3, cy - r - 7 + 3, cx + 3, cy - r + 17 + 3);
+    ptrShadow.fillTriangle(
+      cx - Math.round(12 * ps) + 3, cy - r - Math.round(7 * ps) + 3,
+      cx + Math.round(12 * ps) + 3, cy - r - Math.round(7 * ps) + 3,
+      cx + 3, cy - r + Math.round(17 * ps) + 3,
+    );
 
     // Pointer
     const ptr = this.add.graphics();
     ptr.fillStyle(0xFFFFFF, 1);
-    ptr.fillTriangle(cx - 12, cy - r - 7, cx + 12, cy - r - 7, cx, cy - r + 17);
+    ptr.fillTriangle(
+      cx - Math.round(12 * ps), cy - r - Math.round(7 * ps),
+      cx + Math.round(12 * ps), cy - r - Math.round(7 * ps),
+      cx, cy - r + Math.round(17 * ps),
+    );
     ptr.lineStyle(2, 0x000000, 0.7);
-    ptr.strokeTriangle(cx - 12, cy - r - 7, cx + 12, cy - r - 7, cx, cy - r + 17);
+    ptr.strokeTriangle(
+      cx - Math.round(12 * ps), cy - r - Math.round(7 * ps),
+      cx + Math.round(12 * ps), cy - r - Math.round(7 * ps),
+      cx, cy - r + Math.round(17 * ps),
+    );
 
-    // Hub: layered gold metallic look
-    this.add.circle(cx, cy, 26, 0x7B5800, 1);
-    this.add.circle(cx, cy, 23, 0xD4A017, 1);
-    this.add.circle(cx, cy, 19, 0xFFD700, 1);
-    this.add.circle(cx, cy, 11, 0xFFF8DC, 0.85);
-    const hubRim = this.add.circle(cx, cy, 24);
+    // Hub: layered gold metallic look (scales with wheel)
+    this.add.circle(cx, cy, Math.round(26 * hs), 0x7B5800, 1);
+    this.add.circle(cx, cy, Math.round(23 * hs), 0xD4A017, 1);
+    this.add.circle(cx, cy, Math.round(19 * hs), 0xFFD700, 1);
+    this.add.circle(cx, cy, Math.round(11 * hs), 0xFFF8DC, 0.85);
+    const hubRim = this.add.circle(cx, cy, Math.round(24 * hs));
     hubRim.setStrokeStyle(2, 0x5C3D00);
 
     // Fever glow ring (hidden until fever activates)
     this.feverRing = this.add.graphics().setDepth(9).setAlpha(0);
 
-    // Combo HUD — floats above hub, depth above wheel labels
+    // Combo HUD — floats above hub, scales with wheel radius
+    const comboS = Math.max(1, Math.min(r / 182, 1.4));
     this.comboText = this.add.text(cx, cy - 4, '', {
-      fontSize: '14px', fontFamily: 'Arial Black',
+      fontSize: `${Math.round(14 * comboS)}px`, fontFamily: 'Arial Black',
       color: '#FF6600', stroke: '#000000', strokeThickness: 2,
     }).setOrigin(0.5).setDepth(14);
 
-    this.feverCountText = this.add.text(cx, cy + 11, '', {
-      fontSize: '10px', fontFamily: 'Arial Black',
+    this.feverCountText = this.add.text(cx, cy + Math.round(11 * comboS), '', {
+      fontSize: `${Math.round(10 * comboS)}px`, fontFamily: 'Arial Black',
       color: '#FFD700', stroke: '#000000', strokeThickness: 2,
     }).setOrigin(0.5).setDepth(14);
   }
@@ -403,12 +421,13 @@ export class GameScene extends Phaser.Scene {
         g.strokePath();
       }
 
-      // Label
+      // Label — font size scales with wheel radius
       const lx        = cx + Math.cos(mid) * r * 0.72;
       const ly        = cy + Math.sin(mid) * r * 0.72;
       const isJackpot = seg.type === 'jackpot';
+      const labelPx   = Math.max(9, Math.min(Math.round(r * 0.072), 14));
       const lbl = this.add.text(lx, ly, seg.label, {
-        fontSize: '10px',
+        fontSize: `${labelPx}px`,
         fontFamily: 'Arial Black',
         color: isJackpot ? '#FFD700' : '#FFFFFF',
         stroke: '#000000',
@@ -460,6 +479,8 @@ export class GameScene extends Phaser.Scene {
   // ─── HUD ───────────────────────────────────────────────────────────────────
 
   drawHUD(W, H) {
+    // Scale factor: keep fonts at baseline on phones, grow up to 1.4× on tablets
+    const S = Math.max(1, Math.min(W / 480, 1.4));
     const panel = this.add.graphics();
 
     // Outer glow ring
@@ -503,9 +524,9 @@ export class GameScene extends Phaser.Scene {
       panel.fillStyle(0xFFFFFF, 0.35);
       panel.fillCircle(x - 33, 43, 2.5);
 
-      this.add.text(x - 22, 74, label, {
-        fontSize: '8px', fontFamily: 'Arial Black',
-        color: `#${color.toString(16).padStart(6, '0')}`, alpha: 0.70,
+      this.add.text(x, 74, label, {
+        fontSize: `${Math.round(11 * S)}px`, fontFamily: 'Arial Black',
+        color: `#${color.toString(16).padStart(6, '0')}`,
       }).setOrigin(0.5);
     });
 
@@ -519,14 +540,14 @@ export class GameScene extends Phaser.Scene {
     const rankDef0 = this.rankSystem.currentDef;
     const rColHex0 = `#${rankDef0.color.toString(16).padStart(6, '0')}`;
     this._rankTitleText = this.add.text(24, 89, rankDef0.title, {
-      fontSize: '9px', fontFamily: 'Arial Black', color: rColHex0,
+      fontSize: `${Math.round(11 * S)}px`, fontFamily: 'Arial Black', color: rColHex0,
     }).setOrigin(0, 0.5).setDepth(2);
 
     const xpInfo0 = this.rankSystem.isMaxRank
       ? `V.${GameState.village} · MAX`
       : `V.${GameState.village} · ${this.rankSystem.xpIntoRank}/${this.rankSystem.xpForNextRank}`;
     this._xpProgressText = this.add.text(W - 10, 89, xpInfo0, {
-      fontSize: '9px', fontFamily: 'Arial Black', color: '#556677',
+      fontSize: `${Math.round(11 * S)}px`, fontFamily: 'Arial Black', color: '#8AABBD',
     }).setOrigin(1, 0.5).setDepth(2);
 
     this.updateXPBar();
@@ -534,19 +555,20 @@ export class GameScene extends Phaser.Scene {
     this.coinIconX = W * 0.25;
     this.coinIconY = 45;
 
-    // Stat values — offset right of the icon dot
+    // Stat values — scale with S for readability on tablets
+    const statFz = `${Math.round(16 * S)}px`;
     this.coinsText = this.add.text(W * 0.25 + 4, 45, `${GameState.coins.toLocaleString()}`, {
-      fontSize: '16px', fontFamily: 'Arial Black', color: '#FFD700',
+      fontSize: statFz, fontFamily: 'Arial Black', color: '#FFD700',
       stroke: '#000000', strokeThickness: 3,
     }).setOrigin(0.5);
 
     this.shieldText = this.add.text(W * 0.50 + 4, 45, `${GameState.shields}`, {
-      fontSize: '16px', fontFamily: 'Arial Black', color: '#5DADE2',
+      fontSize: statFz, fontFamily: 'Arial Black', color: '#5DADE2',
       stroke: '#000000', strokeThickness: 3,
     }).setOrigin(0.5);
 
     this.spinsText = this.add.text(W * 0.75 + 4, 45, `${GameState.spins}`, {
-      fontSize: '16px', fontFamily: 'Arial Black', color: '#2ECC71',
+      fontSize: statFz, fontFamily: 'Arial Black', color: '#2ECC71',
       stroke: '#000000', strokeThickness: 3,
     }).setOrigin(0.5);
 
@@ -907,8 +929,9 @@ export class GameScene extends Phaser.Scene {
   // ─── BUILD BUTTONS ─────────────────────────────────────────────────────────
 
   drawBuildButtons(W, H) {
-    this.buildBtnText = this.add.text(W / 2, H * 0.977, 'Tap building to upgrade', {
-      fontSize: '13px', fontFamily: 'Arial', color: '#888888',
+    const S = Math.max(1, Math.min(W / 480, 1.4));
+    this.buildBtnText = this.add.text(W / 2, H * 0.974, 'Tap building to upgrade', {
+      fontSize: `${Math.round(13 * S)}px`, fontFamily: 'Arial', color: '#AAAAAA',
     }).setOrigin(0.5);
 
     this.buildingGraphics.forEach(({ x, groundY, index }) => {
@@ -921,9 +944,10 @@ export class GameScene extends Phaser.Scene {
   // ─── RESULT TEXT ───────────────────────────────────────────────────────────
 
   drawResultText(W, H) {
+    const S = Math.max(1, Math.min(W / 480, 1.4));
     this.resultText = this.add.text(W / 2, H * 0.73, '', {
-      fontSize: '36px', fontFamily: 'Arial Black',
-      color: '#FFD700', stroke: '#000000', strokeThickness: 6,
+      fontSize: `${Math.round(36 * S)}px`, fontFamily: 'Arial Black',
+      color: '#FFD700', stroke: '#000000', strokeThickness: Math.round(6 * S),
     }).setOrigin(0.5).setAlpha(0).setDepth(10);
   }
 

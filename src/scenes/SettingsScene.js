@@ -30,8 +30,9 @@ export class SettingsScene extends Phaser.Scene {
     rowY = this._drawDivider(W, rowY + 6);
     rowY = this._drawActionRow(W, rowY, '🗑️  Reset Progress', 'RESET', '#CC2222', () => this._confirmReset(W, H));
 
-    this.add.text(W / 2, rowY + 24, `Adam's Kingdom  v1.0.0`, {
-      fontSize: '11px', fontFamily: 'Arial', color: '#334455',
+    const S = Math.max(1, Math.min(W / 480, 1.4));
+    this.add.text(W / 2, rowY + 28, `Adam's Kingdom  v1.0.0`, {
+      fontSize: `${Math.round(12 * S)}px`, fontFamily: 'Arial', color: '#4A6070',
     }).setOrigin(0.5).setDepth(3);
 
     this._drawCloseBtn(W, H);
@@ -61,13 +62,14 @@ export class SettingsScene extends Phaser.Scene {
   // ─── TITLE ─────────────────────────────────────────────────────────────────
 
   _drawTitle(W) {
+    const S = Math.max(1, Math.min(W / 480, 1.4));
     const g = this.add.graphics();
     g.fillStyle(0x05051E, 0.92); g.fillRoundedRect(8, 8, W - 16, 74, 14);
     g.fillStyle(0xFFFFFF, 0.04); g.fillRoundedRect(8, 8, W - 16, 36, 14);
     g.lineStyle(2, 0x4488CC, 0.65); g.strokeRoundedRect(8, 8, W - 16, 74, 14);
 
     this.add.text(W / 2, 44, '⚙️  SETTINGS', {
-      fontSize: '22px', fontFamily: 'Arial Black',
+      fontSize: `${Math.round(22 * S)}px`, fontFamily: 'Arial Black',
       color: '#AACCFF', stroke: '#000000', strokeThickness: 4,
     }).setOrigin(0.5).setDepth(2);
   }
@@ -75,17 +77,18 @@ export class SettingsScene extends Phaser.Scene {
   // ─── NAME ROW ──────────────────────────────────────────────────────────────
 
   _drawNameRow(W, y) {
+    const S = Math.max(1, Math.min(W / 480, 1.4));
     const h = 62;
     const g = this.add.graphics().setDepth(2);
     g.fillStyle(0x05051E, 0.88); g.fillRoundedRect(16, y, W - 32, h, 10);
     g.lineStyle(1.5, 0x223355, 0.75); g.strokeRoundedRect(16, y, W - 32, h, 10);
 
     this.add.text(28, y + 12, 'PLAYER NAME', {
-      fontSize: '10px', fontFamily: 'Arial Black', color: '#445577',
+      fontSize: `${Math.round(11 * S)}px`, fontFamily: 'Arial Black', color: '#6688BB',
     }).setDepth(3);
 
     this._nameTxt = this.add.text(28, y + 36, GameState.playerName, {
-      fontSize: '17px', fontFamily: 'Arial Black', color: '#DDEEFF',
+      fontSize: `${Math.round(17 * S)}px`, fontFamily: 'Arial Black', color: '#DDEEFF',
       stroke: '#000', strokeThickness: 2,
     }).setOrigin(0, 0.5).setDepth(3);
 
@@ -98,7 +101,7 @@ export class SettingsScene extends Phaser.Scene {
     btnG.lineStyle(1.5, 0x4488DD, 0.8); btnG.strokeRoundedRect(bx - 72, by - 16, 72, 32, 8);
 
     this.add.text(bx - 36, by, 'CHANGE', {
-      fontSize: '11px', fontFamily: 'Arial Black', color: '#FFFFFF',
+      fontSize: `${Math.round(12 * S)}px`, fontFamily: 'Arial Black', color: '#FFFFFF',
       stroke: '#0A2050', strokeThickness: 2,
     }).setOrigin(0.5).setDepth(4);
 
@@ -112,19 +115,21 @@ export class SettingsScene extends Phaser.Scene {
   // ─── TOGGLE ROW ────────────────────────────────────────────────────────────
 
   _drawToggleRow(W, y, label, isOn, onChange) {
+    const S = Math.max(1, Math.min(W / 480, 1.4));
     const h = 54;
     const g = this.add.graphics().setDepth(2);
     g.fillStyle(0x05051E, 0.88); g.fillRoundedRect(16, y, W - 32, h, 10);
     g.lineStyle(1.5, 0x223355, 0.75); g.strokeRoundedRect(16, y, W - 32, h, 10);
 
     this.add.text(28, y + h / 2, label, {
-      fontSize: '15px', fontFamily: 'Arial Black', color: '#AABBCC',
+      fontSize: `${Math.round(15 * S)}px`, fontFamily: 'Arial Black', color: '#BBCCDD',
       stroke: '#000', strokeThickness: 2,
     }).setOrigin(0, 0.5).setDepth(3);
 
-    const tx = W - 78;
+    const pillW = Math.round(52 * S);
+    const pillH = Math.round(28 * S);
+    const tx = W - pillW - 20;
     const ty = y + h / 2;
-    const pillW = 50; const pillH = 26;
 
     const pillG = this.add.graphics().setDepth(3);
     let state = isOn;
@@ -153,13 +158,14 @@ export class SettingsScene extends Phaser.Scene {
   // ─── ACTION ROW ────────────────────────────────────────────────────────────
 
   _drawActionRow(W, y, label, btnLabel, btnColor, onTap) {
+    const S = Math.max(1, Math.min(W / 480, 1.4));
     const h = 54;
     const g = this.add.graphics().setDepth(2);
     g.fillStyle(0x05051E, 0.88); g.fillRoundedRect(16, y, W - 32, h, 10);
     g.lineStyle(1.5, 0x223355, 0.75); g.strokeRoundedRect(16, y, W - 32, h, 10);
 
     this.add.text(28, y + h / 2, label, {
-      fontSize: '15px', fontFamily: 'Arial Black', color: '#AABBCC',
+      fontSize: `${Math.round(15 * S)}px`, fontFamily: 'Arial Black', color: '#BBCCDD',
       stroke: '#000', strokeThickness: 2,
     }).setOrigin(0, 0.5).setDepth(3);
 
@@ -174,8 +180,8 @@ export class SettingsScene extends Phaser.Scene {
     btnG.strokeRoundedRect(bx - 80, by - 16, 80, 32, 8);
 
     this.add.text(bx - 40, by, btnLabel, {
-      fontSize: '11px', fontFamily: 'Arial Black',
-      color: onTap ? '#FFFFFF' : '#445566',
+      fontSize: `${Math.round(12 * S)}px`, fontFamily: 'Arial Black',
+      color: onTap ? '#FFFFFF' : '#556677',
       stroke: '#000', strokeThickness: onTap ? 2 : 0,
     }).setOrigin(0.5).setDepth(4);
 
@@ -363,21 +369,24 @@ export class SettingsScene extends Phaser.Scene {
   // ─── CLOSE BUTTON ──────────────────────────────────────────────────────────
 
   _drawCloseBtn(W, H) {
+    const S = Math.max(1, Math.min(W / 480, 1.4));
     const bx = W / 2;
     const by = H * 0.93;
+    const btnW = Math.round(200 * S);
+    const btnH = 56;
 
     const g = this.add.graphics().setDepth(5);
-    g.fillStyle(0x7B2D00, 1); g.fillRoundedRect(bx - 100, by - 28, 200, 56, 16);
-    g.fillStyle(0xE67E22, 1); g.fillRoundedRect(bx - 100, by - 28, 200, 42, 16);
-    g.fillStyle(0xF5A623, 0.45); g.fillRoundedRect(bx - 96, by - 24, 192, 20, 12);
-    g.lineStyle(2.5, 0xFFD700, 0.90); g.strokeRoundedRect(bx - 100, by - 28, 200, 56, 16);
+    g.fillStyle(0x7B2D00, 1); g.fillRoundedRect(bx - btnW / 2, by - 28, btnW, btnH, 16);
+    g.fillStyle(0xE67E22, 1); g.fillRoundedRect(bx - btnW / 2, by - 28, btnW, 42, 16);
+    g.fillStyle(0xF5A623, 0.45); g.fillRoundedRect(bx - btnW / 2 + 4, by - 24, btnW - 8, 20, 12);
+    g.lineStyle(2.5, 0xFFD700, 0.90); g.strokeRoundedRect(bx - btnW / 2, by - 28, btnW, btnH, 16);
 
     this.add.text(bx, by, '← Back', {
-      fontSize: '23px', fontFamily: 'Arial Black',
+      fontSize: `${Math.round(23 * S)}px`, fontFamily: 'Arial Black',
       color: '#FFFFFF', stroke: '#7B2D00', strokeThickness: 5,
     }).setOrigin(0.5).setDepth(6);
 
-    this.add.rectangle(bx, by, 200, 56, 0, 0)
+    this.add.rectangle(bx, by, btnW, btnH, 0, 0)
       .setInteractive({ useHandCursor: true }).setDepth(7)
       .on('pointerdown', () => {
         this.cameras.main.fadeOut(280, 0, 0, 0);

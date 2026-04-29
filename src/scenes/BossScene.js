@@ -78,8 +78,9 @@ export class BossScene extends Phaser.Scene {
   // ─── BOSS ──────────────────────────────────────────────────────────────────
 
   _drawBoss(W, H) {
+    const S = Math.max(1, Math.min(W / 480, 1.4));
     this.add.text(W / 2, H * 0.055, 'THE SHADOW KING', {
-      fontSize: '19px', fontFamily: 'Arial Black',
+      fontSize: `${Math.round(19 * S)}px`, fontFamily: 'Arial Black',
       color: '#CC0000', stroke: '#000000', strokeThickness: 4,
     }).setOrigin(0.5).setDepth(5);
 
@@ -230,13 +231,14 @@ export class BossScene extends Phaser.Scene {
       const lx = Math.cos(mid) * r * 0.66;
       const ly = Math.sin(mid) * r * 0.66;
       const rotateDeg = Phaser.Math.RadToDeg(mid) + 90;
+      const bLabelPx = Math.max(8, Math.round(r * 0.085));
       seg.label.split('\n').forEach((line, li, arr) => {
-        const off = (li - (arr.length - 1) / 2) * 10;
+        const off = (li - (arr.length - 1) / 2) * (bLabelPx + 3);
         const t = this.add.text(
           lx + Math.cos(mid) * off,
           ly + Math.sin(mid) * off,
           line,
-          { fontSize: '7px', fontFamily: 'Arial Black', color: '#FFFFFF', stroke: '#000', strokeThickness: 2 }
+          { fontSize: `${bLabelPx}px`, fontFamily: 'Arial Black', color: '#FFFFFF', stroke: '#000', strokeThickness: 2 }
         ).setOrigin(0.5).setAngle(rotateDeg);
         container.add(t);
       });
@@ -271,6 +273,7 @@ export class BossScene extends Phaser.Scene {
   // ─── SPIN BUTTON ───────────────────────────────────────────────────────────
 
   _drawSpinBtn(W, H) {
+    const S = Math.max(1, Math.min(W / 480, 1.4));
     const bx = W / 2;
     const by = H * 0.925;
 
@@ -278,7 +281,7 @@ export class BossScene extends Phaser.Scene {
     this._redrawBtn(bx, by, false);
 
     this._btnTxt = this.add.text(bx, by, '⚔️  ATTACK!', {
-      fontSize: '22px', fontFamily: 'Arial Black',
+      fontSize: `${Math.round(22 * S)}px`, fontFamily: 'Arial Black',
       color: '#FFFFFF', stroke: '#6B0000', strokeThickness: 5,
     }).setOrigin(0.5).setDepth(13);
 
@@ -302,8 +305,9 @@ export class BossScene extends Phaser.Scene {
   // ─── RESULT TEXT ───────────────────────────────────────────────────────────
 
   _drawResultText(W, H) {
+    const S = Math.max(1, Math.min(W / 480, 1.4));
     this._resultTxt = this.add.text(W / 2, H * 0.802, '', {
-      fontSize: '15px', fontFamily: 'Arial Black',
+      fontSize: `${Math.round(16 * S)}px`, fontFamily: 'Arial Black',
       color: '#FFAA44', stroke: '#000', strokeThickness: 3, align: 'center',
     }).setOrigin(0.5).setDepth(12);
   }
