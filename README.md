@@ -232,8 +232,9 @@ The game renders at **native resolution on every screen** — phones, tablets, i
 |:----------|:--------|
 | `Phaser.Scale.RESIZE` | Canvas fills the full viewport; layout recomputes on every scene create |
 | Zone-based layout | `_computeLayout(W, H)` anchors watch-ad + spin button from `safeBottom` upward, then divides the remaining zone between kingdom and wheel — nothing overlaps at any height |
+| Short-screen mode | `H < 720` (iPhone SE) skips watch-ad space reservation (+60px recovered); kingdom fraction 38%, giving buildings 172px on SE vs 126px before |
 | Scale factor `S` | `Math.max(1, Math.min(W / 480, 1.5))` — fonts/sizes never shrink below design baseline on narrow phones, grow up to 1.5× on tablets |
-| Wheel radius | `Math.min(W × 0.40, wheelZoneH × 0.48, 200)` — wheel always fits inside its computed zone |
+| Wheel radius | `Math.min(W × 0.40, wheelZoneH × 0.46, 200)` — wheel always fits inside its computed zone |
 | `viewport-fit=cover` | Fills iPhone notch + Dynamic Island areas |
 | `position: fixed` + `-webkit-fill-available` | Prevents iOS Safari address-bar layout jump |
 | PWA meta tags | `apple-mobile-web-app-capable` — runs chrome-free when added to Home Screen |
