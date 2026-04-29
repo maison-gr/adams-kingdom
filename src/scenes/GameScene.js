@@ -88,6 +88,7 @@ export class GameScene extends Phaser.Scene {
     // Re-sync every 60 s
     this.time.addEvent({ delay: 60000, loop: true, callback: () => syncPlayer(GameState) });
 
+    this._L = this._computeLayout(W, H);
     this.drawBackground(W, H);
     this.drawKingdom(W, H);
     this.drawWheel(W, H);
@@ -119,6 +120,33 @@ export class GameScene extends Phaser.Scene {
       const earned = GameState.checkRefill();
       if (earned > 0) this.updateHUD();
     }
+  }
+
+  // ─── ADAPTIVE LAYOUT ───────────────────────────────────────────────────────
+  // Anchors every element from both ends so nothing overlaps on any phone size.
+
+  _computeLayout(W, H) {
+    const hudBottom  = 100;
+    const safeBottom = H - Math.max(24, H * 0.04); // respects gesture bar / notch
+
+    // Bottom stack (anchored from safeBottom upward)
+    const watchAdCy  = safeBottom - 23;                  // pill centre (pill is 46px tall)
+    const spinBtnCy  = watchAdCy  - 23 - 14 - 37;       // pill-half + gap + btn-half
+
+    // Content zone: between HUD and top of spin button
+    const contentBot = spinBtnCy - 37 - 12;
+    const contentH   = contentBot - hudBottom;
+
+    // Kingdom occupies top 32% of the content zone
+    const groundY = hudBottom + Math.round(contentH * 0.32);
+
+    // Wheel fills the remaining space below the kingdom
+    const wheelZoneTop = groundY + 12;
+    const wheelZoneH   = contentBot - wheelZoneTop;
+    const wheelR = Math.min(W * 0.40, wheelZoneH * 0.48, 200);
+    const wheelCy = wheelZoneTop + wheelR + Math.max(0, (wheelZoneH - wheelR * 2) / 2);
+
+    return { groundY, wheelCy, wheelR, spinBtnCy, watchAdCy };
   }
 
   // ─── BACKGROUND ────────────────────────────────────────────────────────────
@@ -154,7 +182,7 @@ export class GameScene extends Phaser.Scene {
       this.stars.push(
         this.add.circle(
           Phaser.Math.Between(0, W),
-          Phaser.Math.Between(0, H * 0.50),
+          Phaser.Math.Between(0, this._L.groundY - 10),
           r, 0xFFFFFF, a
         )
       );
@@ -162,7 +190,7 @@ export class GameScene extends Phaser.Scene {
 
     // Distant landscape silhouette (castle city on the horizon)
     const sil = this.add.graphics();
-    const silY = H * 0.268;
+    const silY = this._L.groundY - 6;
     sil.fillStyle(0x070718, 0.72);
 
     // Rolling hills (filled circles anchored at silY)
@@ -200,7 +228,7 @@ export class GameScene extends Phaser.Scene {
   // ─── KINGDOM ───────────────────────────────────────────────────────────────
 
   drawKingdom(W, H) {
-    const groundY = H * 0.28;
+    const groundY = this._L.groundY;
 
     // ── Ground layers (back → front) ──────────────────────────────────────────
     const ground = this.add.graphics();
@@ -289,9 +317,8 @@ export class GameScene extends Phaser.Scene {
 
   drawWheel(W, H) {
     const cx = W / 2;
-    const cy = H * 0.57;
-    // Cap radius: never exceed 200px or 28% of screen height (prevents tablet overflow)
-    const r  = Math.min(W * 0.40, H * 0.28, 200);
+    const cy = this._L.wheelCy;
+    const r  = this._L.wheelR;
     this.wheelCx = cx;
     this.wheelCy = cy;
     this.wheelR  = r;
@@ -706,7 +733,7 @@ export class GameScene extends Phaser.Scene {
 
   drawSpinButton(W, H) {
     const bx = W / 2;
-    const by = H * 0.875;
+    const by = this._L.spinBtnCy;
 
     // Outer glow (pulsed separately)
     this.spinGlow = this.add.graphics();
@@ -782,7 +809,7 @@ export class GameScene extends Phaser.Scene {
 
   drawWatchAdArea(W, H) {
     const bx = W / 2;
-    const by = H * 0.93;
+    const by = this._L.watchAdCy;
 
     // Premium pill teaser
     this.adBtnBg = this.add.graphics();
@@ -932,7 +959,7 @@ export class GameScene extends Phaser.Scene {
 
   drawBuildButtons(W, H) {
     const S = Math.max(1, Math.min(W / 480, 1.4));
-    this.buildBtnText = this.add.text(W / 2, H * 0.974, 'Tap building to upgrade', {
+    this.buildBtnText = this.add.text(W / 2, this._L.spinBtnCy + 44, 'Tap building to upgrade', {
       fontSize: `${Math.round(13 * S)}px`, fontFamily: 'Arial', color: '#AAAAAA',
     }).setOrigin(0.5);
 
@@ -947,7 +974,7 @@ export class GameScene extends Phaser.Scene {
 
   drawResultText(W, H) {
     const S = Math.max(1, Math.min(W / 480, 1.4));
-    this.resultText = this.add.text(W / 2, H * 0.73, '', {
+    this.resultText = this.add.text(W / 2, this._L.wheelCy, '', {
       fontSize: `${Math.round(36 * S)}px`, fontFamily: 'Arial Black',
       color: '#FFD700', stroke: '#000000', strokeThickness: Math.round(6 * S),
     }).setOrigin(0.5).setAlpha(0).setDepth(10);
