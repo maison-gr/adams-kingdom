@@ -15,7 +15,8 @@ import { LoginStreak }  from '../systems/LoginStreak.js';
 import { drawBuilding, BUILDING_COLORS } from '../utils/buildingRenderer.js';
 import { audioSystem } from '../effects/AudioSystem.js';
 import { SEGMENTS }    from '../constants/segments.js';
-import { adService }   from '../services/AdService.js';
+import { adService }            from '../services/AdService.js';
+import { NotificationService } from '../services/NotificationService.js';
 
 const BUILDING_COSTS  = [500, 1500, 3000, 6000, 12000, 25000];
 const BUILDING_NAMES  = ['Farm', 'Mill', 'Barracks', 'Market', 'Castle', 'Palace'];
@@ -52,6 +53,7 @@ export class GameScene extends Phaser.Scene {
     this._raidTarget  = null;
     syncPlayer(GameState);
     audioSystem.startBGM();
+    NotificationService.init();
     adService.init();
     this._villageCompleteShowing = false;
     this.events.on('wake', () => {
