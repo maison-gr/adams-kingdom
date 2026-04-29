@@ -1,4 +1,4 @@
-// AI rival system — 3 persistent rivals per player, simulated offline attacks.
+// Rival system — 3 persistent rivals per player, simulated offline attacks.
 
 function shuffle(arr) {
   for (let i = arr.length - 1; i > 0; i--) {

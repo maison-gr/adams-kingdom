@@ -16,6 +16,8 @@
  ╚═╝░░╚═╝╚═╝╚═╝░░╚══╝░╚═════╝░╚═════╝░░╚════╝░╚═╝░░░░╚═╝
 ```
 
+### 🎉 Open-sourced to celebrate the launch of [MaisonGR](https://github.com/maison-gr) — free for everyone, forever.
+
 **A Coin Master-style mobile kingdom builder — spin, attack, raid, build.**  
 **Premium hand-crafted visuals — every building drawn with code, no sprites required.**
 
@@ -25,10 +27,120 @@
 [![Node](https://img.shields.io/badge/Node.js-20-339933?style=for-the-badge&logo=node.js)](https://nodejs.org)
 [![MongoDB](https://img.shields.io/badge/MongoDB-Atlas-47A248?style=for-the-badge&logo=mongodb)](https://mongodb.com)
 [![AdMob](https://img.shields.io/badge/AdMob-6.2-EA4335?style=for-the-badge&logo=googleads)](https://admob.google.com)
+[![License](https://img.shields.io/badge/License-MIT-green?style=for-the-badge)](LICENSE)
 
-*Named after Adam 👦 and Ghofrane 👩 — built by [MaisonGR](https://github.com/maison-gr)*
+*Named after Adam 👦 Our Son — built with love by [MaisonGR](https://github.com/maison-gr)*
 
 </div>
+
+---
+
+## 📸 Screenshots
+
+<div align="center">
+
+| Main Game | Raid Scene | Boss Fight |
+|:---------:|:----------:|:----------:|
+| ![Main](screenshots/02-main.png) | ![Raid](screenshots/03-raid.png) | ![Boss](screenshots/04-boss.png) |
+
+| Splash | Chest | Settings |
+|:------:|:-----:|:--------:|
+| ![Boot](screenshots/01-boot.png) | ![Chest](screenshots/06-chest.png) | ![Settings](screenshots/05-settings.png) |
+
+*All screenshots captured at iPad Mini (768×1024). Runs on any phone, tablet or browser.*
+
+</div>
+
+---
+
+## 🚀 Run It — Web · Android · iOS
+
+### ▶ Web (instant, no install)
+
+```bash
+git clone https://github.com/maison-gr/adams-kingdom.git
+cd adams-kingdom
+npm install
+npm run dev        # opens at http://localhost:3000
+```
+
+Play immediately in any browser. No backend required — the game is fully offline-first.
+
+### 🤖 Android
+
+```bash
+npm run build
+npx cap sync android
+npx cap open android   # opens Android Studio → Run ▶
+```
+
+> Requires **Android Studio** + **Java 17**
+
+**Signed release APK / AAB for Google Play:**
+
+```bash
+cd android
+./gradlew bundleRelease
+# → android/app/build/outputs/bundle/release/app-release.aab
+```
+
+### 🍎 iOS
+
+```bash
+npm run build
+npx cap sync ios
+npx cap open ios       # opens Xcode → ▶ Run
+```
+
+> Requires **`Xcode` 14+** and an Apple Developer account for device/store builds.
+
+---
+
+## 💰 Earn Revenue with Google AdMob
+
+The game ships with **test ad unit IDs**. Swap them for real ones and start earning from day one.
+
+**Step 1 — Create your AdMob account & app**
+
+1. Go to [admob.google.com](https://admob.google.com) → Add app → Android / iOS
+2. Create three ad units: **Interstitial**, **Rewarded**, **Banner**
+3. Copy the unit IDs
+
+**Step 2 — Paste IDs into the code**
+
+Edit [AdService.js](src/services/AdService.js):
+
+```js
+const INTERSTITIAL_ID = 'ca-app-pub-XXXXXXXXXXXXXXXX/YYYYYYYYYY';
+const REWARDED_ID     = 'ca-app-pub-XXXXXXXXXXXXXXXX/YYYYYYYYYY';
+const BANNER_ID       = 'ca-app-pub-XXXXXXXXXXXXXXXX/YYYYYYYYYY';
+```
+
+Edit `android/app/src/main/AndroidManifest.xml`:
+
+```xml
+<meta-data
+  android:name="com.google.android.gms.ads.APPLICATION_ID"
+  android:value="ca-app-pub-XXXXXXXXXXXXXXXX~YYYYYYYYYY"/>
+```
+
+**Step 3 — Disable test mode**
+
+In `capacitor.config.json`:
+
+```json
+"AdMob": { "initializeForTesting": false }
+```
+
+**Step 4 — Build & submit**
+
+```bash
+cd android && ./gradlew bundleRelease
+```
+
+Upload `app-release.aab` to Google Play Console. Ads go live the moment the app is published.
+
+> Revenue comes from: **rewarded ads** (player watches to continue after boss defeat) and **interstitials** (village completion transitions). Both are already wired — you only need to swap the IDs.
 
 ---
 
@@ -523,6 +635,7 @@ Phase 4 — Ship           ████████████░░░░░�
 - [x] App icon + splash screen (1024×1024 / 2732×2732 generated from SVG)
 - [x] Android signing config (keystore + key.properties)
 - [x] Signed release AAB buildable via `./gradlew bundleRelease`
+- [x] Open-sourced under MIT license — MaisonGR launch edition
 - [ ] Replace test AdMob IDs with live production IDs
 - [ ] Google Play Store submission
 - [ ] Apple App Store submission
@@ -546,6 +659,14 @@ Phase 4 — Ship           ████████████░░░░░�
 ---
 
 <div align="center">
+
+---
+
+🎉 **Open-sourced on the occasion of the launch of MaisonGR** 🎉
+
+*Fork it. Build on it. Ship your own kingdom.*
+
+---
 
 Made with ❤️ by **Raed Fadhlaoui** — [MaisonGR](https://github.com/maison-gr)
 

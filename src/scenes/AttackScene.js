@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { GameState }  from '../GameState.js';
 import { drawBuilding, BUILDING_COLORS } from '../utils/buildingRenderer.js';
-import { burstParticles, upgradeEffect }  from '../effects/juice.js';
+import { burstParticles } from '../effects/juice.js';
 import { recordAttack, syncPlayer } from '../api/client.js';
 
 // Coins stolen per hit based on building level

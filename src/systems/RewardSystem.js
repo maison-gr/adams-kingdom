@@ -27,7 +27,6 @@ export class RewardSystem {
     this._combo = comboResult;
     const fn = this[`_on_${segment.type}`];
     if (fn) fn.call(this, segment);
-    else console.warn(`RewardSystem: unknown segment type "${segment.type}"`);
     this.scene.updateHUD();
   }
 
